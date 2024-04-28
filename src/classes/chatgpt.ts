@@ -95,11 +95,11 @@ class ChatGPT {
 		yield* this.linesToMessages(this.chunksToLines(data));
 	}
 
-	private getInstructions(username: string): string {
-		return `${this.options.instructions}
-Current date: ${this.getToday()}
-Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talking to: ${username}` : ""}`;
-	}
+	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?:string): string {
+        return `${this.options.instructions}
+Current date: ${this.getCurrentDay()}, ${this.getToday()}
+Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in a Whatsapp Group chat called : ${groupName} \nGroup Description : "${groupDesc}"\n\nYou are currently talking to one of the member with the username: ${username} \nThe group chat has ${totalParticipants} participants members\nDo your best to follow the conversation context based on group info and current date and time, except roleplaying or the group name begins with "roleplay". if its a roleplay group make sure to follow the conversation context based on roleplay info on the group name and description` : ""}`;
+    }
 
 	public addConversation(conversationId: string, userName: string = "User") {
 		let conversation: Conversation = {
@@ -110,6 +110,31 @@ Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talki
 		this.db.conversations.Add(conversation);
 
 		return conversation;
+	}
+
+	public deleteLastTwoMessages (conversationId: string, messages) {
+        let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+        if (conversation && conversation.messages && conversation.messages.length >= 2) {
+            conversation.messages.splice(-2, 2);
+            conversation.lastActive = Date.now();
+        } else {
+            console.log("There are less than two messages in the conversation.");
+        }
+        return conversation;
+	}
+
+	public addAssistantMessages(conversationId: string, messages) {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+        if (conversation) {
+            conversation.messages.push({
+                id: randomUUID(),
+                content: messages,
+                type: MessageType.Assistant,
+                date: Date.now(),
+            });
+            conversation.lastActive = Date.now();
+        }
+        return conversation;
 	}
 
 	public getConversation(conversationId: string, userName: string = "User") {
@@ -135,17 +160,21 @@ Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talki
 		return conversation;
 	}
 
-	public async ask(prompt: string, conversationId: string = "default", userName: string = "User") {
+	public async ask(prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string) {
 		return await this.askStream(
 			(data) => {},
 			(data) => {},
 			prompt,
 			conversationId,
 			userName,
+			groupName,
+			groupDesc,
+			totalParticipants,
+			imageUrl
 		);
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User") {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 
@@ -252,7 +281,16 @@ Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talki
 		}
 	}
 
-	private generatePrompt(conversation: Conversation, prompt: string): Message[] {
+	private generatePrompt(conversation: Conversation, prompt: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string): Message[] {
+		let content;
+        if (imageUrl) {
+            content = [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: imageUrl } }
+            ];
+        } else {
+            content = prompt;
+        }
 		conversation.messages.push({
 			id: randomUUID(),
 			content: prompt,
@@ -260,13 +298,13 @@ Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talki
 			date: Date.now(),
 		});
 
-		let messages = this.generateMessages(conversation);
+		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants);
 		let promptEncodedLength = this.countTokens(messages);
 		let totalLength = promptEncodedLength + this.options.max_tokens;
 
 		while (totalLength > this.options.max_conversation_tokens) {
 			conversation.messages.shift();
-			messages = this.generateMessages(conversation);
+			messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants);
 			promptEncodedLength = this.countTokens(messages);
 			totalLength = promptEncodedLength + this.options.max_tokens;
 		}
@@ -275,7 +313,7 @@ Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talki
 		return messages;
 	}
 
-	private generateMessages(conversation: Conversation): Message[] {
+	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string): Message[] {
 		let messages: Message[] = [];
 		messages.push({
 			role: "system",
@@ -283,6 +321,18 @@ Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talki
 		});
 		for (let i = 0; i < conversation.messages.length; i++) {
 			let message = conversation.messages[i];
+			let content;
+			if (Array.isArray(message.content)) {
+                content = message.content.map(item => {
+                    if (item.type === 'text') {
+                        return { type: 'text', text: item.text };
+                    } else if (item.type === 'image_url') {
+                        return { type: 'image_url', image_url: { url: item.image_url.url } };
+                    }
+                });
+            } else {
+                content = message.content;
+            }
 			messages.push({
 				role: message.type === MessageType.User ? "user" : "assistant",
 				content: message.content,
@@ -292,12 +342,21 @@ Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talki
 	}
 
 	private countTokens(messages: Message[]): number {
-		let tokens: number = 0;
-		for (let i = 0; i < messages.length; i++) {
-			let message = messages[i];
-			tokens += encode(message.content).length;
-		}
-		return tokens;
+        let tokens : number = 0;
+        for (let i = 0; i < messages.length; i++) {
+            let message = messages[i];
+            if (Array.isArray(message.content)) {
+                for (let j = 0; j < message.content.length; j++) {
+                    let item = message.content[j];
+                    if (item.type === 'text') {
+                        tokens += encode(item.text).length;
+                    }
+                }
+            } else {
+                tokens += encode(message.content).length;
+            }
+        }
+        return tokens;
 	}
 
 	private getToday() {
@@ -318,6 +377,13 @@ Current time: ${this.getTime()}${username !== "User" ? `\nName of the user talki
 		minutes = minutes < 10 ? `0${minutes}` : minutes;
 		return `${hours}:${minutes} ${ampm}`;
 	}
+
+	private getCurrentDay() {
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const today = new Date();
+        const dayIndex = today.getDay();
+        return days[dayIndex];
+    }
 
 	private wait(ms: number) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
