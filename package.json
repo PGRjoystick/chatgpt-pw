@@ -8,7 +8,7 @@
 		"start": "npm run build;node examples/chat.js",
 		"startcli": "npm run build;node examples/cli.js",
 		"build": "tsc",
-		"postinstall": "tsc"
+		"postinstall": "npx tsc"
 	},
 	"repository": {
 		"type": "git",
