@@ -188,7 +188,7 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 				return "Your message was flagged as inappropriate and was not sent.";
 			}
 		}
-
+		let responseStr;
 		let promptStr = this.generatePrompt(conversation, prompt);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
@@ -202,32 +202,37 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 					top_p: this.options.top_p,
 					frequency_penalty: this.options.frequency_penalty,
 					presence_penalty: this.options.presence_penalty,
-					stream: true,
+					stream: this.options.stream,
 				},
 				{
-					responseType: "stream",
+					responseType: this.options.stream ? "stream" : "json",
 					headers: {
-						Accept: "text/event-stream",
+						Accept: this.options.stream ? "text/event-stream" : "application/json",
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${oAIKey.key}`,
 					},
 				},
 			);
 
-			let responseStr = "";
 
-			for await (const message of this.streamCompletion(response.data)) {
-				try {
-					const parsed = JSON.parse(message);
-					const { content } = parsed.choices[0].delta;
-					if (content) {
-						responseStr += content;
-						data(content);
+			if (this.options.stream){
+				responseStr = "";
+				for await (const message of this.streamCompletion(response.data)) {
+					try {
+						const parsed = JSON.parse(message);
+						const { content } = parsed.choices[0].delta;
+						if (content) {
+							responseStr += content;
+							data(content);
+						}
+					} catch (error) {
+						console.error("Could not JSON parse stream message", message, error);
 					}
-				} catch (error) {
-					console.error("Could not JSON parse stream message", message, error);
 				}
+			} else {
+				responseStr = response.data.choices[0]?.messages?.content;
 			}
+
 
 			let completion_tokens = encode(responseStr).length;
 
@@ -281,7 +286,7 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 		}
 	}
 
-	private generatePrompt(conversation: Conversation, prompt: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string): Message[] {
+	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string): Message[] {
 		let content;
         if (imageUrl) {
             content = [
@@ -291,12 +296,14 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
         } else {
             content = prompt;
         }
-		conversation.messages.push({
-			id: randomUUID(),
-			content: prompt,
-			type: MessageType.User,
-			date: Date.now(),
-		});
+		if (prompt) {
+			conversation.messages.push({
+				id: randomUUID(),
+				content: prompt,
+				type: MessageType.User,
+				date: Date.now(),
+			});
+		}
 
 		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants);
 		let promptEncodedLength = this.countTokens(messages);

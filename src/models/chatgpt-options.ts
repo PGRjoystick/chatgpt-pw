@@ -7,6 +7,7 @@ interface ChatGPTOptions {
 	presence_penalty?: number;
 	instructions?: string;
 	moderation?: boolean;
+	stream?: boolean;
 	price?: number;
 	max_conversation_tokens?: number;
 	endpoint?: string;
