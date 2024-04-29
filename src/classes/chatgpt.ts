@@ -200,7 +200,7 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 			}
 		}
 		let responseStr;
-		let promptStr = this.generatePrompt(conversation, prompt);
+		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
 			const response = await axios.post(
@@ -316,7 +316,7 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 			});
 		}
 
-		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants);
+		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl);
 		let promptEncodedLength = this.countTokens(messages);
 		let totalLength = promptEncodedLength + this.options.max_tokens;
 
@@ -331,11 +331,11 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 		return messages;
 	}
 
-	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string): Message[] {
+	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, image_url?: string): Message[] {
 		let messages: Message[] = [];
 		messages.push({
 			role: "system",
-			content: this.getInstructions(conversation.userName),
+			content: this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants),
 		});
 		for (let i = 0; i < conversation.messages.length; i++) {
 			let message = conversation.messages[i];
