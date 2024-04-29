@@ -112,7 +112,7 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 		return conversation;
 	}
 
-	public deleteLastTwoMessages (conversationId: string, messages) {
+	public deleteLastTwoMessages (conversationId: string) {
         let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
         if (conversation && conversation.messages && conversation.messages.length >= 2) {
             conversation.messages.splice(-2, 2);
@@ -121,6 +121,17 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
             console.log("There are less than two messages in the conversation.");
         }
         return conversation;
+	}
+
+	public deleteLastMessage (conversationId: string) {
+    let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+			conversation.messages.splice(-1, 1);
+			conversation.lastActive = Date.now();
+		} else {
+			console.log("There are no messages in the conversation.");
+		}
+    	return conversation;
 	}
 
 	public addAssistantMessages(conversationId: string, messages) {
