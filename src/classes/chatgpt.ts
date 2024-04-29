@@ -310,7 +310,7 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 		if (prompt) {
 			conversation.messages.push({
 				id: randomUUID(),
-				content: prompt,
+				content: content,
 				type: MessageType.User,
 				date: Date.now(),
 			});
