@@ -160,7 +160,7 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 		return conversation;
 	}
 
-	public async ask(prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string) {
+	public async ask(prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string) {
 		return await this.askStream(
 			(data) => {},
 			(data) => {},
