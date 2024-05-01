@@ -134,12 +134,21 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
     	return conversation;
 	}
 
-	public addAssistantMessages(conversationId: string, messages) {
+	public addAssistantMessages(conversationId: string, prompt: string, imageUrl?: string) {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		let content;
+        if (imageUrl) {
+            content = [
+                { type: 'text', text: prompt },
+                { type: 'image_url', image_url: { url: imageUrl } }
+            ];
+        } else {
+            content = prompt;
+        }
         if (conversation) {
             conversation.messages.push({
                 id: randomUUID(),
-                content: messages,
+                content: content,
                 type: MessageType.Assistant,
                 date: Date.now(),
             });
