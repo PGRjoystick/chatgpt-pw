@@ -112,6 +112,28 @@ Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in 
 		return conversation;
 	}
 
+	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string } | null {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+			let firstMessage = this.formatMessageContent(conversation.messages[0].content);
+			let lastMessage = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].content);
+			return { firstMessage, lastMessage };
+		} else {
+			console.log("There are no messages in the conversation.");
+			return null;
+		}
+	}
+	
+	private formatMessageContent(content: any) {
+		if (Array.isArray(content)) {
+			let textPart = content.find(part => part.type === 'text')?.text || '';
+			let imageUrlPart = content.find(part => part.type === 'image_url')?.image_url?.url || '';
+			return `${textPart}\n${imageUrlPart}`;
+		} else {
+			return content;
+		}
+	}
+	
 	public deleteLastTwoMessages (conversationId: string) {
         let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
         if (conversation && conversation.messages && conversation.messages.length >= 2) {
