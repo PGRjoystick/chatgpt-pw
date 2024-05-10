@@ -98,7 +98,8 @@ class ChatGPT {
 	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?:string): string {
         return `${this.options.instructions}
 Current date: ${this.getCurrentDay()}, ${this.getToday()}
-Current time: ${this.getTime()}${username !== "User" ? `\n You are currently in a Whatsapp Group chat called : ${groupName} \nGroup Description : "${groupDesc}"\n\nYou are currently talking to one of the member with the username: ${username} \nThe group chat has ${totalParticipants} participants members\nDo your best to follow the conversation context based on group info and current date and time, except roleplaying or the group name begins with "roleplay". if its a roleplay group make sure to follow the conversation context based on roleplay info on the group name and description` : ""}`;
+Current time: ${this.getTime()}
+${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupName} \nGroup Description : "${groupDesc}"\n\nYou are currently talking to one of the member with the username: ${username} \nThe group chat has ${totalParticipants} participants members\nDo your best to follow the conversation context based on group info and current date and time, except roleplaying or the group name begins with "roleplay". if its a roleplay group make sure to follow the conversation context based on roleplay info on the group name and description` : `You are currently talking to a user with a username : "${username}"\n `}`;
     }
 
 	public addConversation(conversationId: string, userName: string = "User") {
