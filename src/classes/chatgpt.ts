@@ -203,7 +203,7 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 		return conversation;
 	}
 
-	public async ask(prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string) {
+	public async ask(prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
 		return await this.askStream(
 			(data) => {},
 			(data) => {},
@@ -213,7 +213,8 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 			groupName,
 			groupDesc,
 			totalParticipants,
-			imageUrl
+			imageUrl,
+			loFi
 		);
 	}
 
