@@ -217,7 +217,7 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 		);
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 
@@ -232,7 +232,7 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 			}
 		}
 		let responseStr;
-		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl);
+		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
 			const response = await axios.post(
@@ -329,16 +329,24 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 		}
 	}
 
-	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string): Message[] {
+	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean): Message[] {
 		let content;
-        if (imageUrl) {
-            content = [
-                { type: 'text', text: prompt },
-                { type: 'image_url', image_url: { url: imageUrl } }
-            ];
-        } else {
-            content = prompt;
-        }
+		if (imageUrl) {
+			if (loFi) {
+				content = [
+					{ type: 'text', text: prompt },
+					{ type: 'image_url', image_url: { url: imageUrl, detail: 'low' } }
+				];
+			} else {
+				content = [
+					{ type: 'text', text: prompt },
+					{ type: 'image_url', image_url: { url: imageUrl } }
+				];
+			}
+		} else {
+			content = prompt;
+		}
+
 		if (prompt) {
 			conversation.messages.push({
 				id: randomUUID(),
@@ -348,7 +356,7 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 			});
 		}
 
-		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl);
+		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi);
 		let promptEncodedLength = this.countTokens(messages);
 		let totalLength = promptEncodedLength + this.options.max_tokens;
 
@@ -363,7 +371,7 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 		return messages;
 	}
 
-	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, image_url?: string): Message[] {
+	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean): Message[] {
 		let messages: Message[] = [];
 		messages.push({
 			role: "system",
@@ -373,19 +381,23 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 			let message = conversation.messages[i];
 			let content;
 			if (Array.isArray(message.content)) {
-                content = message.content.map(item => {
-                    if (item.type === 'text') {
-                        return { type: 'text', text: item.text };
-                    } else if (item.type === 'image_url') {
-                        return { type: 'image_url', image_url: { url: item.image_url.url } };
-                    }
-                });
-            } else {
-                content = message.content;
-            }
+				content = message.content.map(item => {
+					if (item.type === 'text') {
+						return { type: 'text', text: item.text };
+					} else if (item.type === 'image_url') {
+						if (loFi) {
+							return { type: 'image_url', image_url: { url: item.image_url.url, detail: 'low' } };
+						} else {
+							return { type: 'image_url', image_url: { url: item.image_url.url } };
+						}
+					}
+				});
+			} else {
+				content = message.content;
+			}
 			messages.push({
 				role: message.type === MessageType.User ? "user" : "assistant",
-				content: message.content,
+				content: content,
 			});
 		}
 		return messages;
