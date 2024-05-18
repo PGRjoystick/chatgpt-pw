@@ -180,6 +180,21 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
         return conversation;
 	}
 
+	public async ask(prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
+		return await this.askStream(
+			(data) => {},
+			(data) => {},
+			prompt,
+			conversationId,
+			userName,
+			groupName,
+			groupDesc,
+			totalParticipants,
+			imageUrl,
+			loFi
+		);
+	}
+
 	public getConversation(conversationId: string, userName: string = "User") {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (!conversation) {
@@ -201,21 +216,6 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 		}
 
 		return conversation;
-	}
-
-	public async ask(prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
-		return await this.askStream(
-			(data) => {},
-			(data) => {},
-			prompt,
-			conversationId,
-			userName,
-			groupName,
-			groupDesc,
-			totalParticipants,
-			imageUrl,
-			loFi
-		);
 	}
 
 	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
@@ -318,18 +318,6 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 		}
 	}
 
-	public async moderate(prompt: string, key: string) {
-		try {
-			let openAi = new OpenAIApi(new Configuration({ apiKey: key }));
-			let response = await openAi.createModeration({
-				input: prompt,
-			});
-			return response.data.results[0].flagged;
-		} catch (error) {
-			return false;
-		}
-	}
-
 	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean): Message[] {
 		let content;
 		if (imageUrl) {
@@ -402,6 +390,18 @@ ${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupNam
 			});
 		}
 		return messages;
+	}
+
+	public async moderate(prompt: string, key: string) {
+		try {
+			let openAi = new OpenAIApi(new Configuration({ apiKey: key }));
+			let response = await openAi.createModeration({
+				input: prompt,
+			});
+			return response.data.results[0].flagged;
+		} catch (error) {
+			return false;
+		}
 	}
 
 	private countTokens(messages: Message[]): number {
