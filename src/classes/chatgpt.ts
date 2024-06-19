@@ -10,6 +10,8 @@ import AppDbContext from "./app-dbcontext.js";
 import OpenAIKey from "../models/openai-key.js";
 import { Configuration, OpenAIApi } from "openai";
 
+const startsWithIgnoreCase = (str, prefix) => str.toLowerCase().startsWith(prefix.toLowerCase());
+
 class ChatGPT {
 	public options: Options;
 	private db: AppDbContext;
@@ -95,12 +97,30 @@ class ChatGPT {
 		yield* this.linesToMessages(this.chunksToLines(data));
 	}
 
-	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?:string): string {
-        return `${this.options.instructions}
-Current date: ${this.getCurrentDay()}, ${this.getToday()}
-Current time: ${this.getTime()}
-${groupName ? `\n You are currently in a Whatsapp Group chat called : ${groupName} \nGroup Description : "${groupDesc}"\n\nYou are currently talking to one of the member with the username: "${username}" \nThe group chat has ${totalParticipants} participants members\nDo your best to follow the conversation context based on group info and current date and time, except roleplaying or the group name begins with "roleplay". if its a roleplay group make sure to follow the conversation context based on roleplay info on the group name and description` : `You are currently chatting to a user with a username : "${username}"\n `}`;
-    }
+	private startsWithIgnoreCase(str: string, prefix: string): boolean {
+		return str.toLowerCase().startsWith(prefix.toLowerCase());
+	}
+	
+	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?: string): string {
+		const roleplay = this.startsWithIgnoreCase(groupName, "roleplay");
+		const currentDate = `${this.getCurrentDay()}, ${this.getToday()}`;
+		const currentTime = this.getTime();
+		const baseInstructions = `${this.options.instructions}\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}\n`;
+
+		if (groupName) {
+			return this.getGroupInstructions(groupName, groupDesc, username, totalParticipants, roleplay, baseInstructions);
+		} else {
+			return `${baseInstructions}You are currently chatting to a user with a username: "${username}"\n `;
+		}
+	}
+
+	private getGroupInstructions(groupName: string, groupDesc: string, username: string, totalParticipants: string, roleplay: boolean, baseInstructions: string): string {
+		if (roleplay) {
+			return `${baseInstructions}You are currently in a Roleplay chat with a title: "${groupName}"\nRoleplay Description: "${groupDesc}"\n\nIn this chat session, You must follow the conversation context and your role based on roleplay info on the group name and description`;
+		} else {
+			return `${baseInstructions}You are currently in a Group chat called: ${groupName} \nGroup Description: "${groupDesc}"\n\nYou are currently talking to one of the member with the username: "${username}"\nThe group chat has ${totalParticipants} participants members\nDo your best to follow the conversation context based on group info and current date and time, except roleplaying or the group name begins with "roleplay". if it's a roleplay group make sure to follow the conversation context based on roleplay info on the group name and description`;
+		}
+	}
 
 	public addConversation(conversationId: string, userName: string = "User") {
 		let conversation: Conversation = {
