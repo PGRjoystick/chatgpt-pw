@@ -116,9 +116,9 @@ class ChatGPT {
 
 	private getGroupInstructions(groupName: string, groupDesc: string, username: string, totalParticipants: string, roleplay: boolean, baseInstructions: string): string {
 		if (roleplay) {
-			return `You are currently in a Roleplay chat with a title: "${groupName}"\nRoleplay Description: "${groupDesc}"\n\nIn this chat session, You must follow the conversation context and your role based on roleplay info on the group name and description`;
+			return `You are currently in a Roleplay chat with a title: "${groupName.substring('Roleplay :'.length)}"\nRoleplay Description: "${groupDesc}"\n\nIn this chat session, You must follow the conversation context and your role based on roleplay info on the group name and description`;
 		} else {
-			return `${baseInstructions}You are currently in a Group chat called: ${groupName} \nGroup Description: "${groupDesc}"\n\nYou are currently talking to one of the member with the username: "${username}"\nThe group chat has ${totalParticipants} participants members\nDo your best to follow the conversation context based on group info and current date and time, except roleplaying or the group name begins with "roleplay". if it's a roleplay group make sure to follow the conversation context based on roleplay info on the group name and description`;
+			return `${baseInstructions}You are currently in a Group chat called: ${groupName} \nGroup Description: "${groupDesc}"\n\nYou are currently talking to one of the member with the username: "${username}"\nThe group chat has ${totalParticipants} participants members\nDo your best to follow the conversation context based on group info and current date and time`;
 		}
 	}
 
