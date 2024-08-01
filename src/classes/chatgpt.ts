@@ -200,10 +200,11 @@ class ChatGPT {
         return conversation;
 	}
 
-	public async ask(prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
 		return await this.askStream(
 			(data) => {},
 			(data) => {},
+			gptModel,
 			prompt,
 			conversationId,
 			userName,
@@ -238,7 +239,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, gptModel: string, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 
@@ -259,7 +260,7 @@ class ChatGPT {
 			const response = await axios.post(
 				this.options.endpoint,
 				{
-					model: this.options.model,
+					model: gptModel || this.options.model,
 					messages: promptStr,
 					temperature: this.options.temperature,
 					max_tokens: this.options.max_tokens,
@@ -278,7 +279,6 @@ class ChatGPT {
 				},
 			);
 
-
 			if (this.options.stream){
 				responseStr = "";
 				for await (const message of this.streamCompletion(response.data)) {
@@ -296,7 +296,6 @@ class ChatGPT {
 			} else {
 				responseStr = response.data.choices[0]?.messages?.content;
 			}
-
 
 			let completion_tokens = encode(responseStr).length;
 
