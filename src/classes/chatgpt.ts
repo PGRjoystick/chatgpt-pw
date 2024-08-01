@@ -204,7 +204,6 @@ class ChatGPT {
 		return await this.askStream(
 			(data) => {},
 			(data) => {},
-			gptModel,
 			prompt,
 			conversationId,
 			userName,
@@ -212,7 +211,8 @@ class ChatGPT {
 			groupDesc,
 			totalParticipants,
 			imageUrl,
-			loFi
+			loFi,
+			gptModel
 		);
 	}
 
@@ -239,7 +239,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, gptModel: string, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean, gptModel?: string) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 
