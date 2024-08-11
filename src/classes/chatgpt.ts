@@ -201,7 +201,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -213,7 +213,8 @@ class ChatGPT {
 			totalParticipants,
 			imageUrl,
 			loFi,
-			gptModel
+			gptModel,
+			maxContextWindowInput
 		);
 	}
 
@@ -240,7 +241,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 
@@ -255,7 +256,7 @@ class ChatGPT {
 			}
 		}
 		let responseStr;
-		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi);
+		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
 			const response = await axios.post(
@@ -338,7 +339,7 @@ class ChatGPT {
 		}
 	}
 
-	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean): Message[] {
+	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
 		let content;
 		if (imageUrl) {
 			if (loFi) {
@@ -369,7 +370,9 @@ class ChatGPT {
 		let promptEncodedLength = this.countTokens(messages);
 		let totalLength = promptEncodedLength + this.options.max_tokens;
 
-		while (totalLength > this.options.max_conversation_tokens) {
+		const maxContextWindow = maxContextWindowInput || this.options.max_conversation_tokens;
+
+		while (totalLength > maxContextWindow) {
 			conversation.messages.shift();
 			messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants);
 			promptEncodedLength = this.countTokens(messages);
