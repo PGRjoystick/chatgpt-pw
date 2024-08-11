@@ -100,7 +100,7 @@ class ChatGPT {
 	private startsWithIgnoreCase(str: string, prefix: string): boolean {
 		return str.toLowerCase().startsWith(prefix.toLowerCase());
 	}
-	
+
 	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?: string): string {
 		const roleplay = this.startsWithIgnoreCase(groupName, "roleplay");
 		const currentDate = `${this.getCurrentDay()}, ${this.getToday()}`;
@@ -133,18 +133,19 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string } | null {
+	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string, type: number } | null {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let firstMessage = this.formatMessageContent(conversation.messages[0].content);
 			let lastMessage = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].content);
-			return { firstMessage, lastMessage };
+			let type = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].type);
+			return { firstMessage, lastMessage, type };
 		} else {
 			console.log("There are no messages in the conversation.");
 			return null;
 		}
 	}
-	
+
 	private formatMessageContent(content: any) {
 		if (Array.isArray(content)) {
 			let textPart = content.find(part => part.type === 'text')?.text || '';
@@ -154,56 +155,56 @@ class ChatGPT {
 			return content;
 		}
 	}
-	
-	public deleteLastTwoMessages (conversationId: string) {
-        let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
-        if (conversation && conversation.messages && conversation.messages.length >= 2) {
-            conversation.messages.splice(-2, 2);
-            conversation.lastActive = Date.now();
-        } else {
-            console.log("There are less than two messages in the conversation.");
-        }
-        return conversation;
+
+	public deleteLastTwoMessages(conversationId: string) {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		if (conversation && conversation.messages && conversation.messages.length >= 2) {
+			conversation.messages.splice(-2, 2);
+			conversation.lastActive = Date.now();
+		} else {
+			console.log("There are less than two messages in the conversation.");
+		}
+		return conversation;
 	}
 
-	public deleteLastMessage (conversationId: string) {
-    let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public deleteLastMessage(conversationId: string) {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			conversation.messages.splice(-1, 1);
 			conversation.lastActive = Date.now();
 		} else {
 			console.log("There are no messages in the conversation.");
 		}
-    	return conversation;
+		return conversation;
 	}
 
 	public addAssistantMessages(conversationId: string, prompt: string, imageUrl?: string) {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		let content;
-        if (imageUrl) {
-            content = [
-                { type: 'text', text: prompt },
-                { type: 'image_url', image_url: { url: imageUrl } }
-            ];
-        } else {
-            content = prompt;
-        }
-        if (conversation) {
-            conversation.messages.push({
-                id: randomUUID(),
-                content: content,
-                type: MessageType.Assistant,
-                date: Date.now(),
-            });
-            conversation.lastActive = Date.now();
-        }
-        return conversation;
+		if (imageUrl) {
+			content = [
+				{ type: 'text', text: prompt },
+				{ type: 'image_url', image_url: { url: imageUrl } }
+			];
+		} else {
+			content = prompt;
+		}
+		if (conversation) {
+			conversation.messages.push({
+				id: randomUUID(),
+				content: content,
+				type: MessageType.Assistant,
+				date: Date.now(),
+			});
+			conversation.lastActive = Date.now();
+		}
+		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean) {
 		return await this.askStream(
-			(data) => {},
-			(data) => {},
+			(data) => { },
+			(data) => { },
 			prompt,
 			conversationId,
 			userName,
@@ -239,7 +240,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?:string, imageUrl?:string, loFi?: boolean, gptModel?: string) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 
@@ -279,7 +280,7 @@ class ChatGPT {
 				},
 			);
 
-			if (this.options.stream){
+			if (this.options.stream) {
 				responseStr = "";
 				for await (const message of this.streamCompletion(response.data)) {
 					try {
@@ -424,21 +425,21 @@ class ChatGPT {
 	}
 
 	private countTokens(messages: Message[]): number {
-        let tokens : number = 0;
-        for (let i = 0; i < messages.length; i++) {
-            let message = messages[i];
-            if (Array.isArray(message.content)) {
-                for (let j = 0; j < message.content.length; j++) {
-                    let item = message.content[j];
-                    if (item.type === 'text') {
-                        tokens += encode(item.text).length;
-                    }
-                }
-            } else {
-                tokens += encode(message.content).length;
-            }
-        }
-        return tokens;
+		let tokens: number = 0;
+		for (let i = 0; i < messages.length; i++) {
+			let message = messages[i];
+			if (Array.isArray(message.content)) {
+				for (let j = 0; j < message.content.length; j++) {
+					let item = message.content[j];
+					if (item.type === 'text') {
+						tokens += encode(item.text).length;
+					}
+				}
+			} else {
+				tokens += encode(message.content).length;
+			}
+		}
+		return tokens;
 	}
 
 	private getToday() {
@@ -461,11 +462,11 @@ class ChatGPT {
 	}
 
 	private getCurrentDay() {
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const today = new Date();
-        const dayIndex = today.getDay();
-        return days[dayIndex];
-    }
+		const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+		const today = new Date();
+		const dayIndex = today.getDay();
+		return days[dayIndex];
+	}
 
 	private wait(ms: number) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
