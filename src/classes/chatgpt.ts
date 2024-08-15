@@ -102,12 +102,12 @@ class ChatGPT {
 	}
 
 	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?: string): string {
-		const roleplay = this.startsWithIgnoreCase(groupName, "roleplay");
 		const currentDate = `${this.getCurrentDay()}, ${this.getToday()}`;
 		const currentTime = this.getTime();
 		const baseInstructions = `${this.options.instructions}\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}\n`;
 
 		if (groupName) {
+			const roleplay = this.startsWithIgnoreCase(groupName, "roleplay");
 			return this.getGroupInstructions(groupName, groupDesc, username, totalParticipants, roleplay, baseInstructions);
 		} else {
 			return `${baseInstructions}You are currently chatting to a user with a username: "${username}"\n `;
