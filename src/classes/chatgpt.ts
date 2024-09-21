@@ -201,7 +201,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -214,7 +214,8 @@ class ChatGPT {
 			imageUrl,
 			loFi,
 			gptModel,
-			maxContextWindowInput
+			maxContextWindowInput,
+			reverse_url
 		);
 	}
 
@@ -241,7 +242,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 
@@ -259,6 +260,16 @@ class ChatGPT {
 		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
+			const headers = {
+                Accept: this.options.stream ? "text/event-stream" : "application/json",
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${oAIKey.key}`,
+            };
+
+			if (reverse_url) {
+                headers["reverse_url"] = reverse_url;
+            }
+
 			const response = await axios.post(
 				this.options.endpoint,
 				{
@@ -273,11 +284,7 @@ class ChatGPT {
 				},
 				{
 					responseType: this.options.stream ? "stream" : "json",
-					headers: {
-						Accept: this.options.stream ? "text/event-stream" : "application/json",
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${oAIKey.key}`,
-					},
+					headers: headers
 				},
 			);
 
