@@ -133,19 +133,26 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string, type: number } | null {
+	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string, lastType: number, isLastMessagevision: boolean } | null {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let firstMessage = this.formatMessageContent(conversation.messages[0].content);
 			let lastMessage = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].content);
-			let type = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].type);
-			return { firstMessage, lastMessage, type };
+			let lastType = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].type);
+			
+			let isLastMessagevision = false;
+			const lastMessageContent = conversation.messages[conversation.messages.length - 1].content;
+			if (Array.isArray(lastMessageContent)) {
+				isLastMessagevision = lastMessageContent.some(part => part.type === 'image_url');
+			}
+	
+			return { firstMessage, lastMessage, lastType, isLastMessagevision };
 		} else {
 			console.log("There are no messages in the conversation.");
 			return null;
 		}
 	}
-
+	
 	private formatMessageContent(content: any) {
 		if (Array.isArray(content)) {
 			let textPart = content.find(part => part.type === 'text')?.text || '';
