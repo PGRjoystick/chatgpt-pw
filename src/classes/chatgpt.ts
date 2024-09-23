@@ -159,8 +159,13 @@ class ChatGPT {
 			let visionCount = 0;
 			for (let message of conversation.messages) {
 				const messageContent = message.content;
-				if (Array.isArray(messageContent) && messageContent.some(part => part.type === 'image_url')) {
-					visionCount++;
+				if (Array.isArray(messageContent)) {
+					const hasValidImageUrl = messageContent.some(part => 
+						part.type === 'image_url' && part.image_url?.detail !== 'low'
+					);
+					if (hasValidImageUrl) {
+						visionCount++;
+					}
 				}
 			}
 			return visionCount;
