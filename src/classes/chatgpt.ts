@@ -153,6 +153,23 @@ class ChatGPT {
 		}
 	}
 	
+	public countChatsWithVision(conversationId: string): number {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+			let visionCount = 0;
+			for (let message of conversation.messages) {
+				const messageContent = message.content;
+				if (Array.isArray(messageContent) && messageContent.some(part => part.type === 'image_url')) {
+					visionCount++;
+				}
+			}
+			return visionCount;
+		} else {
+			console.log("There are no messages in the conversation.");
+			return 0;
+		}
+	}
+
 	private formatMessageContent(content: any) {
 		if (Array.isArray(content)) {
 			let textPart = content.find(part => part.type === 'text')?.text || '';
