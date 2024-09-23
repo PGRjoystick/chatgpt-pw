@@ -9,6 +9,7 @@ import MessageType from "../enums/message-type.js";
 import AppDbContext from "./app-dbcontext.js";
 import OpenAIKey from "../models/openai-key.js";
 import { Configuration, OpenAIApi } from "openai";
+import { UsageStats } from "src/models/message.js";
 
 const startsWithIgnoreCase = (str, prefix) => str.toLowerCase().startsWith(prefix.toLowerCase());
 
@@ -133,7 +134,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string, lastType: number, isLastMessagevision: boolean } | null {
+	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string, lastType: number, isLastMessagevision: boolean, prompt_tokens?: number, completion_tokens?: number, total_tokens?: number } | null {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let firstMessage = this.formatMessageContent(conversation.messages[0].content);
@@ -146,13 +147,28 @@ class ChatGPT {
 				isLastMessagevision = lastMessageContent.some(part => part.type === 'image_url');
 			}
 	
-			return { firstMessage, lastMessage, lastType, isLastMessagevision };
+			const usage: UsageStats = conversation.messages[conversation.messages.length - 1].usage as UsageStats;
+			const prompt_tokens = usage?.prompt_tokens;
+			const completion_tokens = usage?.completion_tokens;
+			const total_tokens = usage?.total_tokens;
+	
+			return { firstMessage, lastMessage, lastType, isLastMessagevision, prompt_tokens, completion_tokens, total_tokens };
 		} else {
 			console.log("There are no messages in the conversation.");
 			return null;
 		}
 	}
 	
+	private formatMessageContent(content: any) {
+		if (Array.isArray(content)) {
+			let textPart = content.find(part => part.type === 'text')?.text || '';
+			let imageUrlPart = content.find(part => part.type === 'image_url')?.image_url?.url || '';
+			return `${textPart}\n${imageUrlPart}`;
+		} else {
+			return content;
+		}
+	}
+
 	public countChatsWithVision(conversationId: string): number {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
@@ -172,16 +188,6 @@ class ChatGPT {
 		} else {
 			console.log("There are no messages in the conversation.");
 			return 0;
-		}
-	}
-
-	private formatMessageContent(content: any) {
-		if (Array.isArray(content)) {
-			let textPart = content.find(part => part.type === 'text')?.text || '';
-			let imageUrlPart = content.find(part => part.type === 'image_url')?.image_url?.url || '';
-			return `${textPart}\n${imageUrlPart}`;
-		} else {
-			return content;
 		}
 	}
 

@@ -8,4 +8,10 @@ interface Message {
 	usage?: object;
 }
 
+export interface UsageStats {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+}
+
 export default Message;
