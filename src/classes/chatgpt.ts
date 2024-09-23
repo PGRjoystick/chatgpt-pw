@@ -344,6 +344,12 @@ class ChatGPT {
 				total_tokens: prompt_tokens + completion_tokens,
 			};
 
+			let usageDataResponse = {
+				prompt_tokens: response.data.usage.prompt_tokens,
+				completion_tokens: response.data.usage.completion_tokens,
+				total_tokens: response.data.usage.total_tokens
+			}
+
 			usage(usageData);
 			if (this.onUsage) this.onUsage(usageData);
 
@@ -356,6 +362,7 @@ class ChatGPT {
 				content: responseStr,
 				type: MessageType.Assistant,
 				date: Date.now(),
+				usage: usageDataResponse
 			});
 
 			return responseStr;
