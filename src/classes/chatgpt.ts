@@ -338,7 +338,11 @@ class ChatGPT {
 					}
 				}
 			} else {
-				responseStr = response.data.choices[0]?.messages?.content;
+				if (response.data.status === 500 && response.data.error) {
+                    throw new Error(response.data.error);
+                } else {
+                    responseStr = response.data.choices[0]?.messages?.content;
+                }
 			}
 
 			let completion_tokens = encode(responseStr).length;
