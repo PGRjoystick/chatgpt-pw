@@ -427,6 +427,7 @@ class ChatGPT {
 			archiveData.messages.push(...messages);
 			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 			fs.appendFileSync(archiveFile, JSON.stringify({ messages: [] }) + '\n');
+			fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 		} else {
 			const oldestMessage = conversation.messages.shift();
 			const role = oldestMessage.type === 1 ? 'user' : 'assistant';
@@ -435,9 +436,8 @@ class ChatGPT {
 				content: oldestMessage.content
 			});
 			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
+			fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 		}
-		// Clear the write stream to avoid appending multiple times
-		fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 	}
 
 	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
