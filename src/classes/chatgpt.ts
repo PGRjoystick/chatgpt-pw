@@ -404,12 +404,18 @@ class ChatGPT {
 		const archiveFile = path.join(archivePath, `${conversation.id}.jsonl`);
 		let archiveData = { messages: [] };
 	
-		// Read existing archive data if the file exists
+		// Read existing archive data if the file exists and is not empty
 		if (fs.existsSync(archiveFile)) {
-			const fileContent = fs.readFileSync(archiveFile, 'utf-8');
-			const lines = fileContent.trim().split('\n');
-			if (lines.length > 0) {
-				archiveData = JSON.parse(lines[lines.length - 1]);
+			const fileContent = fs.readFileSync(archiveFile, 'utf-8').trim();
+			if (fileContent) {
+				const lines = fileContent.split('\n');
+				if (lines.length > 0) {
+					try {
+						archiveData = JSON.parse(lines[lines.length - 1]);
+					} catch (error) {
+						console.error(`[Message Archiver] Failed to parse JSON from ${archiveFile}:`, error);
+					}
+				}
 			}
 		}
 	
