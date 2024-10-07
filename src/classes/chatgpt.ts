@@ -436,6 +436,8 @@ class ChatGPT {
 			});
 			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 		}
+		// Clear the write stream to avoid appending multiple times
+		fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 	}
 
 	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
