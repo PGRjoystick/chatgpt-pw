@@ -12,9 +12,13 @@ import { Configuration, OpenAIApi } from "openai";
 import { UsageStats } from "src/models/message.js";
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
 
 const startsWithIgnoreCase = (str, prefix) => str.toLowerCase().startsWith(prefix.toLowerCase());
-
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 class ChatGPT {
 	public options: Options;
 	private db: AppDbContext;
@@ -394,9 +398,9 @@ class ChatGPT {
 	
 		return conversation;
 	}
-
+	
 	private archiveOldestMessage(conversation: Conversation, wrapMessage: boolean = false) {
-		const archivePath = path.join(path.dirname(require.main.filename), '../../archives');
+		const archivePath = path.join(__dirname, '../../archives');
 		if (!fs.existsSync(archivePath)) {
 			fs.mkdirSync(archivePath);
 		}
