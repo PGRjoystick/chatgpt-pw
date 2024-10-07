@@ -431,8 +431,7 @@ class ChatGPT {
 			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 		}
 	
-		// Clear the write stream to avoid appending multiple times
-		fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
+		console.log(`[Message Archiver] Context limit has been reached. Archiving chats on ${archiveFile}...`);
 	}
 
 	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
