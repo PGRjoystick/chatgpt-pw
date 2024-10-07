@@ -396,7 +396,7 @@ class ChatGPT {
 	}
 
 	private archiveOldestMessage(conversation: Conversation, wrapMessage: boolean = false) {
-		const archivePath = path.join(__dirname, '../../archives');
+		const archivePath = path.join(path.dirname(require.main.filename), '../../archives');
 		if (!fs.existsSync(archivePath)) {
 			fs.mkdirSync(archivePath);
 		}
