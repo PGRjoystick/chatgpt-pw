@@ -425,9 +425,8 @@ class ChatGPT {
 				content: message.content
 			}));
 			archiveData.messages.push(...messages);
-			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
-			fs.appendFileSync(archiveFile, JSON.stringify({ messages: [] }) + '\n');
-			fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
+			fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n', { flag: 'a' });
+			fs.writeFileSync(archiveFile, JSON.stringify({ messages: [] }) + '\n', { flag: 'a' });
 		} else {
 			const oldestMessage = conversation.messages.shift();
 			const role = oldestMessage.type === 1 ? 'user' : 'assistant';
@@ -435,8 +434,7 @@ class ChatGPT {
 				role: role,
 				content: oldestMessage.content
 			});
-			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
-			fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
+			fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n', { flag: 'a' });
 		}
 	}
 
