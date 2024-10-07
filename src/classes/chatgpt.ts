@@ -12,13 +12,9 @@ import { Configuration, OpenAIApi } from "openai";
 import { UsageStats } from "src/models/message.js";
 import * as fs from 'fs';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
 
 const startsWithIgnoreCase = (str, prefix) => str.toLowerCase().startsWith(prefix.toLowerCase());
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 class ChatGPT {
 	public options: Options;
 	private db: AppDbContext;
@@ -406,25 +402,37 @@ class ChatGPT {
 		}
 	
 		const archiveFile = path.join(archivePath, `${conversation.id}.jsonl`);
-		const writeStream = fs.createWriteStream(archiveFile, { flags: 'a' });
+		let archiveData = { messages: [] };
+	
+		// Read existing archive data if the file exists
+		if (fs.existsSync(archiveFile)) {
+			const fileContent = fs.readFileSync(archiveFile, 'utf-8');
+			const lines = fileContent.trim().split('\n');
+			if (lines.length > 0) {
+				archiveData = JSON.parse(lines[lines.length - 1]);
+			}
+		}
 	
 		if (wrapMessage) {
 			const messages = conversation.messages.map(message => ({
 				role: message.type === 1 ? 'user' : 'assistant',
 				content: message.content
 			}));
-			writeStream.write(JSON.stringify({ messages }) + '\n');
-			writeStream.write(JSON.stringify({ messages: [] }) + '\n');
+			archiveData.messages.push(...messages);
+			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
+			fs.appendFileSync(archiveFile, JSON.stringify({ messages: [] }) + '\n');
 		} else {
 			const oldestMessage = conversation.messages.shift();
 			const role = oldestMessage.type === 1 ? 'user' : 'assistant';
-			writeStream.write(JSON.stringify({
+			archiveData.messages.push({
 				role: role,
 				content: oldestMessage.content
-			}) + '\n');
+			});
+			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 		}
 	
-		writeStream.end();
+		// Clear the write stream to avoid appending multiple times
+		fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 	}
 
 	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
