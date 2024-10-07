@@ -395,7 +395,7 @@ class ChatGPT {
 		return conversation;
 	}
 	
-	private archiveOldestMessage(conversation: Conversation, wrapMessage: boolean = false) {
+	private async archiveOldestMessage(conversation: Conversation, wrapMessage: boolean = false) {
 		const archivePath = './archives';
 		if (!fs.existsSync(archivePath)) {
 			fs.mkdirSync(archivePath);
@@ -425,8 +425,9 @@ class ChatGPT {
 				content: message.content
 			}));
 			archiveData.messages.push(...messages);
-			fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n', { flag: 'a' });
-			fs.writeFileSync(archiveFile, JSON.stringify({ messages: [] }) + '\n', { flag: 'a' });
+			const lines = fs.existsSync(archiveFile) ? fs.readFileSync(archiveFile, 'utf-8').trim().split('\n') : [];
+			lines[lines.length - 1] = JSON.stringify(archiveData);
+			fs.appendFileSync(archiveFile, JSON.stringify({ messages: [] }) + '\n');
 		} else {
 			const oldestMessage = conversation.messages.shift();
 			const role = oldestMessage.type === 1 ? 'user' : 'assistant';
@@ -434,7 +435,9 @@ class ChatGPT {
 				role: role,
 				content: oldestMessage.content
 			});
-			fs.writeFileSync(archiveFile, JSON.stringify(archiveData) + '\n', { flag: 'a' });
+			const lines = fs.existsSync(archiveFile) ? fs.readFileSync(archiveFile, 'utf-8').trim().split('\n') : [];
+			lines[lines.length - 1] = JSON.stringify(archiveData);
+			fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
 		}
 	}
 
