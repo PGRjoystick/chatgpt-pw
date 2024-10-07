@@ -427,7 +427,8 @@ class ChatGPT {
 			archiveData.messages.push(...messages);
 			const lines = fs.existsSync(archiveFile) ? fs.readFileSync(archiveFile, 'utf-8').trim().split('\n') : [];
 			lines[lines.length - 1] = JSON.stringify(archiveData);
-			fs.appendFileSync(archiveFile, JSON.stringify({ messages: [] }) + '\n');
+			lines.push(JSON.stringify({ messages: [] }));
+			fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
 		} else {
 			const oldestMessage = conversation.messages.shift();
 			const role = oldestMessage.type === 1 ? 'user' : 'assistant';
