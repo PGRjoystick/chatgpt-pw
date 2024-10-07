@@ -400,7 +400,7 @@ class ChatGPT {
 		if (!fs.existsSync(archivePath)) {
 			fs.mkdirSync(archivePath);
 		}
-	
+		console.log(`[Message Archiver] Context limit ${wrapMessage ? 'has been cleared' : 'has been reached'} for chat id ${conversation.id}. Archiving chats on ${archivePath}...`);
 		const archiveFile = path.join(archivePath, `${conversation.id}.jsonl`);
 		let archiveData = { messages: [] };
 	
@@ -430,8 +430,6 @@ class ChatGPT {
 			});
 			fs.appendFileSync(archiveFile, JSON.stringify(archiveData) + '\n');
 		}
-	
-		console.log(`[Message Archiver] Context limit has been reached. Archiving chats on ${archiveFile}...`);
 	}
 
 	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
