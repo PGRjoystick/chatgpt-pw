@@ -394,53 +394,60 @@ class ChatGPT {
 	
 		return conversation;
 	}
-	
-	private async archiveOldestMessage(conversation: Conversation, wrapMessage: boolean = false) {
-		const archivePath = './archives';
-		if (!fs.existsSync(archivePath)) {
-			fs.mkdirSync(archivePath);
-		}
-		console.log(`[Message Archiver] Context limit ${wrapMessage ? 'has been cleared' : 'has been reached'} for chat id ${conversation.id}. Archiving chats on ${archivePath}...`);
-		const archiveFile = path.join(archivePath, `${conversation.id}.jsonl`);
-		let archiveData = { messages: [] };
-	
-		// Read existing archive data if the file exists and is not empty
-		if (fs.existsSync(archiveFile)) {
-			const fileContent = fs.readFileSync(archiveFile, 'utf-8').trim();
-			if (fileContent) {
-				const lines = fileContent.split('\n');
-				if (lines.length > 0) {
-					try {
-						archiveData = JSON.parse(lines[lines.length - 1]);
-					} catch (error) {
-						console.error(`[Message Archiver] Failed to parse JSON from ${archiveFile}:`, error);
-					}
-				}
-			}
-		}
-	
-		if (wrapMessage) {
-			const messages = conversation.messages.map(message => ({
-				role: message.type === 1 ? 'user' : 'assistant',
-				content: message.content
-			}));
-			archiveData.messages.push(...messages);
-			const lines = fs.existsSync(archiveFile) ? fs.readFileSync(archiveFile, 'utf-8').trim().split('\n') : [];
-			lines[lines.length - 1] = JSON.stringify(archiveData);
-			lines.push(JSON.stringify({ messages: [] }));
-			fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
-		} else {
-			const oldestMessage = conversation.messages.shift();
-			const role = oldestMessage.type === 1 ? 'user' : 'assistant';
-			archiveData.messages.push({
-				role: role,
-				content: oldestMessage.content
-			});
-			const lines = fs.existsSync(archiveFile) ? fs.readFileSync(archiveFile, 'utf-8').trim().split('\n') : [];
-			lines[lines.length - 1] = JSON.stringify(archiveData);
-			fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
-		}
-	}
+    
+    async archiveOldestMessage(conversation, wrapMessage = false) {
+        const archivePath = './archives';
+        if (!fs.existsSync(archivePath)) {
+            fs.mkdirSync(archivePath);
+        }
+		console.log(`[Message Archiver] Context ${wrapMessage ? 'chats has been cleared' : 'limit has been reached'} for chat id ${conversation.id}. Archiving chats on ${archivePath}...`);
+        const archiveFile = path.join(archivePath, `${conversation.id}.jsonl`);
+        let archiveData = { messages: [] };
+        let lines = [];
+    
+        if (fs.existsSync(archiveFile)) {
+            const fileContent = fs.readFileSync(archiveFile, 'utf-8').trim();
+            if (fileContent) {
+                lines = fileContent.split('\n');
+                if (lines.length > 0) {
+                    try {
+                        archiveData = JSON.parse(lines[lines.length - 1]);
+                    }
+                    catch (error) {
+                        console.error(`[Message Archiver] Failed to parse JSON from ${archiveFile}:`, error);
+                    }
+                }
+            }
+        }
+    
+        if (wrapMessage) {
+            const messages = conversation.messages.map(message => ({
+                role: message.type === 1 ? 'user' : 'assistant',
+                content: message.content
+            }));
+            archiveData.messages.push(...messages);
+            if (lines.length === 0) {
+                lines.push(JSON.stringify(archiveData));
+            } else {
+                lines[lines.length - 1] = JSON.stringify(archiveData);
+            }
+            lines.push(JSON.stringify({ messages: [] }));
+            fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
+        } else {
+            const oldestMessage = conversation.messages.shift();
+            const role = oldestMessage.type === 1 ? 'user' : 'assistant';
+            archiveData.messages.push({
+                role: role,
+                content: oldestMessage.content
+            });
+            if (lines.length === 0) {
+                lines.push(JSON.stringify(archiveData));
+            } else {
+                lines[lines.length - 1] = JSON.stringify(archiveData);
+            }
+            fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
+        }
+    }
 
 	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
 		let content;
