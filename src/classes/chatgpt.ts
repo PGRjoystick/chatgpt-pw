@@ -387,7 +387,7 @@ class ChatGPT {
 	public resetConversation(conversationId: string) {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (conversation) {
-			this.archiveOldestMessage(conversation, true);
+			this.archiveOldestMessage(conversation, '', true);
 			conversation.messages = [];
 			conversation.lastActive = Date.now();
 		}
@@ -395,59 +395,70 @@ class ChatGPT {
 		return conversation;
 	}
     
-    async archiveOldestMessage(conversation, wrapMessage = false) {
-        const archivePath = './archives';
-        if (!fs.existsSync(archivePath)) {
-            fs.mkdirSync(archivePath);
-        }
-		console.log(`[Message Archiver] Context ${wrapMessage ? 'chats has been cleared' : 'limit has been reached'} for chat id ${conversation.id}. Archiving chats on ${archivePath}...`);
-        const archiveFile = path.join(archivePath, `${conversation.id}.jsonl`);
-        let archiveData = { messages: [] };
-        let lines = [];
-    
-        if (fs.existsSync(archiveFile)) {
-            const fileContent = fs.readFileSync(archiveFile, 'utf-8').trim();
-            if (fileContent) {
-                lines = fileContent.split('\n');
-                if (lines.length > 0) {
-                    try {
-                        archiveData = JSON.parse(lines[lines.length - 1]);
-                    }
-                    catch (error) {
-                        console.error(`[Message Archiver] Failed to parse JSON from ${archiveFile}:`, error);
-                    }
-                }
-            }
-        }
-    
-        if (wrapMessage) {
-            const messages = conversation.messages.map(message => ({
-                role: message.type === 1 ? 'user' : 'assistant',
-                content: message.content
-            }));
-            archiveData.messages.push(...messages);
-            if (lines.length === 0) {
-                lines.push(JSON.stringify(archiveData));
-            } else {
-                lines[lines.length - 1] = JSON.stringify(archiveData);
-            }
-            lines.push(JSON.stringify({ messages: [] }));
-            fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
-        } else {
-            const oldestMessage = conversation.messages.shift();
-            const role = oldestMessage.type === 1 ? 'user' : 'assistant';
-            archiveData.messages.push({
-                role: role,
-                content: oldestMessage.content
-            });
-            if (lines.length === 0) {
-                lines.push(JSON.stringify(archiveData));
-            } else {
-                lines[lines.length - 1] = JSON.stringify(archiveData);
-            }
-            fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
-        }
-    }
+	async archiveOldestMessage(conversation, systemInstruction, wrapMessage = false) {
+	const archivePath = './archives';
+	if (!fs.existsSync(archivePath)) {
+		fs.mkdirSync(archivePath);
+	}
+	console.log(`[Message Archiver] Context ${wrapMessage ? 'chats has been cleared' : 'limit has been reached'} for chat id ${conversation.id}. Archiving chats on ${archivePath}...`);
+	const archiveFile = path.join(archivePath, `${conversation.id}.jsonl`);
+	let archiveData = { messages: [] };
+	let lines = [];
+
+	if (fs.existsSync(archiveFile)) {
+		const fileContent = fs.readFileSync(archiveFile, 'utf-8').trim();
+		if (fileContent) {
+			lines = fileContent.split('\n');
+			if (lines.length > 0) {
+				try {
+					archiveData = JSON.parse(lines[lines.length - 1]);
+				} catch (error) {
+					console.error(`[Message Archiver] Failed to parse JSON from ${archiveFile}:`, error);
+				}
+			}
+		}
+	}
+
+	if (systemInstruction) {
+		const systemMessage = {
+			role: 'system',
+			content: systemInstruction
+		};
+		if (archiveData.messages.length > 0 && archiveData.messages[0].role === 'system') {
+			archiveData.messages[0] = systemMessage;
+		} else {
+			archiveData.messages.unshift(systemMessage);
+		}
+	}
+
+	if (wrapMessage) {
+		const messages = conversation.messages.map(message => ({
+			role: message.type === 1 ? 'user' : 'assistant',
+			content: message.content
+		}));
+		archiveData.messages.push(...messages);
+		if (lines.length === 0) {
+			lines.push(JSON.stringify(archiveData));
+		} else {
+			lines[lines.length - 1] = JSON.stringify(archiveData);
+		}
+		lines.push(JSON.stringify({ messages: [] }));
+		fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
+	} else {
+		const oldestMessage = conversation.messages.shift();
+		const role = oldestMessage.type === 1 ? 'user' : 'assistant';
+		archiveData.messages.push({
+			role: role,
+			content: oldestMessage.content
+		});
+		if (lines.length === 0) {
+			lines.push(JSON.stringify(archiveData));
+		} else {
+			lines[lines.length - 1] = JSON.stringify(archiveData);
+		}
+		fs.writeFileSync(archiveFile, lines.join('\n') + '\n');
+	}
+}
 
 	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
 		let content;
@@ -483,7 +494,7 @@ class ChatGPT {
 		const maxContextWindow = maxContextWindowInput || this.options.max_conversation_tokens;
 	
 		while (totalLength > maxContextWindow) {
-			this.archiveOldestMessage(conversation);
+			this.archiveOldestMessage(conversation, this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants), false);
 			messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants);
 			promptEncodedLength = this.countTokens(messages);
 			totalLength = promptEncodedLength + this.options.max_tokens;
