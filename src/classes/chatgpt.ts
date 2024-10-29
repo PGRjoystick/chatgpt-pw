@@ -238,7 +238,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, InstructionPrompt?: string) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -252,7 +252,8 @@ class ChatGPT {
 			loFi,
 			gptModel,
 			maxContextWindowInput,
-			reverse_url
+			reverse_url,
+			InstructionPrompt
 		);
 	}
 
