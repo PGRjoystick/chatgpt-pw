@@ -104,10 +104,10 @@ class ChatGPT {
 		return str.toLowerCase().startsWith(prefix.toLowerCase());
 	}
 
-	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?: string): string {
+	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?: string, InstructionPrompt?: string): string {
 		const currentDate = `${this.getCurrentDay()}, ${this.getToday()}`;
 		const currentTime = this.getTime();
-		const baseInstructions = `${this.options.instructions}\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}\n`;
+		const baseInstructions = `${this.options.instructions}\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}${InstructionPrompt ? `\nBehavior Instruction: ${InstructionPrompt}` : ``}\n\n`;
 
 		if (groupName) {
 			const roleplay = this.startsWithIgnoreCase(groupName, "roleplay");
@@ -269,7 +269,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, InstructionPrompt?: string) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 
@@ -284,7 +284,7 @@ class ChatGPT {
 			}
 		}
 		let responseStr;
-		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput);
+		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, InstructionPrompt);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
 			const headers = {
@@ -460,7 +460,7 @@ class ChatGPT {
 	}
 }
 
-	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number): Message[] {
+	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, InstructionPrompt?: string): Message[] {
 		let content;
 		if (imageUrl) {
 			if (loFi) {
@@ -487,14 +487,14 @@ class ChatGPT {
 			});
 		}
 	
-		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi);
+		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, InstructionPrompt);
 		let promptEncodedLength = this.countTokens(messages);
 		let totalLength = promptEncodedLength + this.options.max_tokens;
 	
 		const maxContextWindow = maxContextWindowInput || this.options.max_conversation_tokens;
 	
 		while (totalLength > maxContextWindow) {
-			this.archiveOldestMessage(conversation, this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants), false);
+			this.archiveOldestMessage(conversation, this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, InstructionPrompt), false);
 			messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants);
 			promptEncodedLength = this.countTokens(messages);
 			totalLength = promptEncodedLength + this.options.max_tokens;
@@ -504,11 +504,11 @@ class ChatGPT {
 		return messages;
 	}
 
-	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean): Message[] {
+	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, InstructionPrompt?: string): Message[] {
 		let messages: Message[] = [];
 		messages.push({
 			role: "system",
-			content: this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants),
+			content: this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, InstructionPrompt),
 		});
 		for (let i = 0; i < conversation.messages.length; i++) {
 			let message = conversation.messages[i];
