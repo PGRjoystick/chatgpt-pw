@@ -238,7 +238,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, InstructionPrompt?: string) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -253,6 +253,7 @@ class ChatGPT {
 			gptModel,
 			maxContextWindowInput,
 			reverse_url,
+			version,
 			InstructionPrompt
 		);
 	}
@@ -270,10 +271,10 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, InstructionPrompt?: string) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
-
+	
 		if (this.options.moderation) {
 			let flagged = await this.moderate(prompt, oAIKey.key);
 			if (flagged) {
@@ -289,33 +290,39 @@ class ChatGPT {
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
 			const headers = {
-                Accept: this.options.stream ? "text/event-stream" : "application/json",
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${oAIKey.key}`,
-            };
-
+				Accept: this.options.stream ? "text/event-stream" : "application/json",
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${oAIKey.key}`,
+			};
+	
 			if (reverse_url) {
-                headers["reverse_url"] = reverse_url;
-            }
-
+				headers["reverse_url"] = reverse_url;
+			}
+	
+			const requestBody: any = {
+				model: gptModel || this.options.model,
+				messages: promptStr,
+				temperature: this.options.temperature,
+				max_tokens: this.options.max_tokens,
+				top_p: this.options.top_p,
+				frequency_penalty: this.options.frequency_penalty,
+				presence_penalty: this.options.presence_penalty,
+				stream: this.options.stream,
+			};
+	
+			if (version !== undefined) {
+				requestBody.version = version;
+			}
+	
 			const response = await axios.post(
 				this.options.endpoint,
-				{
-					model: gptModel || this.options.model,
-					messages: promptStr,
-					temperature: this.options.temperature,
-					max_tokens: this.options.max_tokens,
-					top_p: this.options.top_p,
-					frequency_penalty: this.options.frequency_penalty,
-					presence_penalty: this.options.presence_penalty,
-					stream: this.options.stream,
-				},
+				requestBody,
 				{
 					responseType: this.options.stream ? "stream" : "json",
 					headers: headers
 				},
 			);
-
+	
 			if (this.options.stream) {
 				responseStr = "";
 				for await (const message of this.streamCompletion(response.data)) {
@@ -332,34 +339,34 @@ class ChatGPT {
 				}
 			} else {
 				if (response.data.status === 500 && response.data.error) {
-                    throw new Error(response.data.error);
-                } else {
-                    responseStr = response.data.choices[0]?.messages?.content;
-                }
+					throw new Error(response.data.error);
+				} else {
+					responseStr = response.data.choices[0]?.messages?.content;
+				}
 			}
-
+	
 			let completion_tokens = encode(responseStr).length;
-
+	
 			let usageData = {
 				key: oAIKey.key,
 				prompt_tokens: prompt_tokens,
 				completion_tokens: completion_tokens,
 				total_tokens: prompt_tokens + completion_tokens,
 			};
-
+	
 			let usageDataResponse = {
 				prompt_tokens: response.data.usage.prompt_tokens,
 				completion_tokens: response.data.usage.completion_tokens,
 				total_tokens: response.data.usage.total_tokens
 			}
-
+	
 			usage(usageData);
 			if (this.onUsage) this.onUsage(usageData);
-
+	
 			oAIKey.tokens += usageData.total_tokens;
 			oAIKey.balance = (oAIKey.tokens / 1000) * this.options.price;
 			oAIKey.queries++;
-
+	
 			conversation.messages.push({
 				id: randomUUID(),
 				content: responseStr,
@@ -367,16 +374,16 @@ class ChatGPT {
 				date: Date.now(),
 				usage: usageDataResponse
 			});
-
+	
 			return responseStr;
 		} catch (error: any) {
 			if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
 				let errorResponseStr = "";
-
+	
 				for await (const message of error.response.data) {
 					errorResponseStr += message;
 				}
-
+	
 				const errorResponseJson = JSON.parse(errorResponseStr);
 				throw new Error(errorResponseJson.error.message);
 			} else {
