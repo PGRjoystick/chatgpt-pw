@@ -55,6 +55,8 @@ class ChatGPT {
 			max_conversation_tokens: options?.max_conversation_tokens || 4097,
 			endpoint: options?.endpoint || "https://api.openai.com/v1/chat/completions",
 			moderation: options?.moderation || false,
+			alt_endpoint: options?.alt_endpoint,
+			alt_api_key: options?.alt_api_key,
 		};
 	}
 
@@ -238,7 +240,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -254,7 +256,8 @@ class ChatGPT {
 			maxContextWindowInput,
 			reverse_url,
 			version,
-			InstructionPrompt
+			InstructionPrompt,
+			useAltApi,
 		);
 	}
 
@@ -271,7 +274,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 	
@@ -289,12 +292,16 @@ class ChatGPT {
 		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, InstructionPrompt);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
-			const headers = {
+			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
+				Accept: this.options.stream ? "text/event-stream" : "application/json",
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${this.options.alt_api_key}`,
+			} : {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
 				Authorization: `Bearer ${oAIKey.key}`,
-			};
-	
+			}
+
 			if (reverse_url) {
 				headers["reverse_url"] = reverse_url;
 			}
@@ -313,9 +320,9 @@ class ChatGPT {
 			if (version !== undefined) {
 				requestBody.version = version;
 			}
-	
+
 			const response = await axios.post(
-				this.options.endpoint,
+				useAltApi ? this.options.alt_endpoint : this.options.endpoint,
 				requestBody,
 				{
 					responseType: this.options.stream ? "stream" : "json",

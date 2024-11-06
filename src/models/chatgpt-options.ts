@@ -11,6 +11,8 @@ interface ChatGPTOptions {
 	price?: number;
 	max_conversation_tokens?: number;
 	endpoint?: string;
+	alt_endpoint?: string;
+	alt_api_key?: string;
 }
 
 export default ChatGPTOptions;
