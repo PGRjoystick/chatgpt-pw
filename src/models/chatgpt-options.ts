@@ -12,7 +12,7 @@ interface ChatGPTOptions {
 	max_conversation_tokens?: number;
 	endpoint?: string;
 	alt_endpoint?: string;
-	alt_api_key?: string;
+	alt_api_key?: string | string[];
 	base_instruction?: string;
 }
 

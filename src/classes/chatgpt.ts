@@ -56,7 +56,7 @@ class ChatGPT {
 			endpoint: options?.endpoint || "https://api.openai.com/v1/chat/completions",
 			moderation: options?.moderation || false,
 			alt_endpoint: options?.alt_endpoint,
-			alt_api_key: options?.alt_api_key,
+			alt_api_key:  Array.isArray(options?.alt_api_key) ? options.alt_api_key : [options?.alt_api_key],
 			base_instruction: options?.base_instruction,
 		};
 	}
@@ -275,6 +275,14 @@ class ChatGPT {
 		return conversation;
 	}
 
+	private getRandomAltApiKey(): string | undefined {
+		if (this.options.alt_api_key && this.options.alt_api_key.length > 0) {
+			const randomIndex = Math.floor(Math.random() * this.options.alt_api_key.length);
+			return this.options.alt_api_key[randomIndex];
+		}
+		return undefined;
+	}
+
 	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
@@ -296,7 +304,7 @@ class ChatGPT {
 			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
-				Authorization: `Bearer ${this.options.alt_api_key}`,
+				Authorization: `Bearer ${this.getRandomAltApiKey()}`,
 			} : {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
