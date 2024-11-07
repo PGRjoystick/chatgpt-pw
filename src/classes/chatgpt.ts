@@ -348,7 +348,7 @@ class ChatGPT {
 				if (response.data.status === 500 && response.data.error) {
 					throw new Error(response.data.error);
 				} else {
-					responseStr = response.data.choices[0]?.messages?.content;
+					responseStr = response.data.choices[0]?.message?.content;
 				}
 			}
 	
