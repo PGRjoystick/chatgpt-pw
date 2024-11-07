@@ -13,6 +13,7 @@ interface ChatGPTOptions {
 	endpoint?: string;
 	alt_endpoint?: string;
 	alt_api_key?: string;
+	base_instruction?: string;
 }
 
 export default ChatGPTOptions;

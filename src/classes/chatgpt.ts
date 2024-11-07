@@ -57,6 +57,8 @@ class ChatGPT {
 			moderation: options?.moderation || false,
 			alt_endpoint: options?.alt_endpoint,
 			alt_api_key: options?.alt_api_key,
+			base_instruction: options?.base_instruction,
+
 		};
 	}
 
