@@ -15,9 +15,11 @@ import * as path from 'path';
 
 
 const startsWithIgnoreCase = (str, prefix) => str.toLowerCase().startsWith(prefix.toLowerCase());
+
 class ChatGPT {
 	public options: Options;
 	private db: AppDbContext;
+	private currentKeyIndex: number = 0;
 	public onUsage: (usage: Usage) => void;
 
 	constructor(key: string | string[], options?: Options) {
@@ -275,10 +277,11 @@ class ChatGPT {
 		return conversation;
 	}
 
-	private getRandomAltApiKey(): string | undefined {
+	private getSequentialAltApiKey(): string | undefined {
 		if (this.options.alt_api_key && this.options.alt_api_key.length > 0) {
-			const randomIndex = Math.floor(Math.random() * this.options.alt_api_key.length);
-			return this.options.alt_api_key[randomIndex];
+			const key = this.options.alt_api_key[this.currentKeyIndex];
+			this.currentKeyIndex = (this.currentKeyIndex + 1) % this.options.alt_api_key.length;
+			return key;
 		}
 		return undefined;
 	}
@@ -304,7 +307,7 @@ class ChatGPT {
 			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
-				Authorization: `Bearer ${this.getRandomAltApiKey()}`,
+				Authorization: `Bearer ${this.getSequentialAltApiKey()}`,
 			} : {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
@@ -401,6 +404,10 @@ class ChatGPT {
 				}
 	
 				const errorResponseJson = JSON.parse(errorResponseStr);
+				if (error.response.status === 429 && useAltApi) {
+					this.currentKeyIndex = (this.currentKeyIndex + 1) % this.options.alt_api_key.length;
+					return this.askStream(data, usage, prompt, conversationId, userName, groupName, groupDesc, totalParticipants, imageUrl, loFi, gptModel, maxContextWindowInput, reverse_url, version, InstructionPrompt, useAltApi);
+				}
 				throw new Error(errorResponseJson.error.message);
 			} else {
 				throw new Error(error.message);
