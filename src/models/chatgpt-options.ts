@@ -14,6 +14,7 @@ interface ChatGPTOptions {
 	alt_endpoint?: string;
 	alt_api_key?: string | string[];
 	base_instruction?: string;
+	xapi?: boolean;
 }
 
 export default ChatGPTOptions;

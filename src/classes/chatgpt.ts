@@ -60,6 +60,7 @@ class ChatGPT {
 			alt_endpoint: options?.alt_endpoint,
 			alt_api_key:  Array.isArray(options?.alt_api_key) ? options.alt_api_key : [options?.alt_api_key],
 			base_instruction: options?.base_instruction,
+			xapi: options?.xapi,
 		};
 	}
 
@@ -307,7 +308,7 @@ class ChatGPT {
 			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
-				Authorization: `Bearer ${this.getSequentialAltApiKey()}`,
+				Authorization: `${this.options.xapi ? `x-api-key: ${this.getSequentialAltApiKey()}` : `Bearer ${this.getSequentialAltApiKey()}`}`,
 			} : {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
