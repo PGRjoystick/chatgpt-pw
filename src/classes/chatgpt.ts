@@ -244,7 +244,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -262,6 +262,7 @@ class ChatGPT {
 			version,
 			InstructionPrompt,
 			useAltApi,
+			providedAltApiKey
 		);
 	}
 
@@ -287,7 +288,7 @@ class ChatGPT {
 		return undefined;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 	
@@ -308,7 +309,7 @@ class ChatGPT {
 			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
-				Authorization: `Bearer ${this.getSequentialAltApiKey()}`,
+				Authorization: `Bearer ${providedAltApiKey || this.getSequentialAltApiKey()}`,
 			} : {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
@@ -396,14 +397,17 @@ class ChatGPT {
 			});
 	
 			return responseStr;
-		} catch (error: any) {
+		} 		catch (error: any) {
 			if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
 				let errorResponseStr = "";
-	
-				for await (const message of error.response.data) {
-					errorResponseStr += message;
+		
+				// Assuming error.response.data is a string or a JSON object
+				if (typeof error.response.data === 'string') {
+					errorResponseStr = error.response.data;
+				} else if (typeof error.response.data === 'object') {
+					errorResponseStr = JSON.stringify(error.response.data);
 				}
-	
+		
 				const errorResponseJson = JSON.parse(errorResponseStr);
 				if (error.response.status === 429 && useAltApi) {
 					this.currentKeyIndex = (this.currentKeyIndex + 1) % this.options.alt_api_key.length;
