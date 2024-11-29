@@ -244,7 +244,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -262,7 +262,8 @@ class ChatGPT {
 			version,
 			InstructionPrompt,
 			useAltApi,
-			providedAltApiKey
+			providedAltApiKey,
+			providedAltApiEndpoint
 		);
 	}
 
@@ -288,7 +289,7 @@ class ChatGPT {
 		return undefined;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 	
@@ -336,7 +337,7 @@ class ChatGPT {
 			}
 
 			const response = await axios.post(
-				useAltApi ? this.options.alt_endpoint : this.options.endpoint,
+				useAltApi ? providedAltApiEndpoint || this.options.alt_endpoint : this.options.endpoint,
 				requestBody,
 				{
 					responseType: this.options.stream ? "stream" : "json",
