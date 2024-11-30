@@ -244,7 +244,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string, xapi?: boolean) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -263,7 +263,8 @@ class ChatGPT {
 			InstructionPrompt,
 			useAltApi,
 			providedAltApiKey,
-			providedAltApiEndpoint
+			providedAltApiEndpoint,
+			xapi
 		);
 	}
 
@@ -289,7 +290,7 @@ class ChatGPT {
 		return undefined;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string, xapi?: boolean) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 	
@@ -310,17 +311,17 @@ class ChatGPT {
 			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
-				Authorization: `Bearer ${providedAltApiKey || this.getSequentialAltApiKey()}`,
+				...(xapi ? { "x-api-key": providedAltApiKey || this.getSequentialAltApiKey() } : { Authorization: `Bearer ${providedAltApiKey || this.getSequentialAltApiKey()}` }),
 			} : {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
-				Authorization: `Bearer ${oAIKey.key}`,
-			}
+				...(xapi ? { "x-api-key": oAIKey.key } : { Authorization: `Bearer ${oAIKey.key}` }),
+			};
 
 			if (reverse_url) {
 				headers["reverse_url"] = reverse_url;
 			}
-	
+
 			const requestBody: any = {
 				model: gptModel || this.options.model,
 				messages: promptStr,
