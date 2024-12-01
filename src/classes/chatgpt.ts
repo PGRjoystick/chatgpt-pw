@@ -498,7 +498,7 @@ class ChatGPT {
 	}
 }
 
-	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, InstructionPrompt?: string, useAltApi?: boolean): Message[] {
+	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, InstructionPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean): Message[] {
 		let content;
 		if (imageUrl) {
 			if (loFi) {
@@ -525,7 +525,7 @@ class ChatGPT {
 			});
 		}
 	
-		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, InstructionPrompt, useAltApi);
+		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, InstructionPrompt, useAltApi, systemPromptUnsupported);
 		let promptEncodedLength = this.countTokens(messages);
 		let totalLength = promptEncodedLength + this.options.max_tokens;
 	
@@ -533,7 +533,7 @@ class ChatGPT {
 	
 		while (totalLength > maxContextWindow) {
 			this.archiveOldestMessage(conversation, this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, InstructionPrompt, useAltApi), false);
-			messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants);
+			messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, InstructionPrompt, useAltApi, systemPromptUnsupported);
 			promptEncodedLength = this.countTokens(messages);
 			totalLength = promptEncodedLength + this.options.max_tokens;
 		}
@@ -541,13 +541,33 @@ class ChatGPT {
 		conversation.lastActive = Date.now();
 		return messages;
 	}
-
-	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, InstructionPrompt?: string, useAltApi?: boolean): Message[] {
+	
+	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, InstructionPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean): Message[] {
 		let messages: Message[] = [];
-		messages.push({
-			role: "system",
-			content: this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, InstructionPrompt, useAltApi),
-		});
+		const systemPrompt = this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, InstructionPrompt, useAltApi);
+	
+		if (systemPromptUnsupported) {
+			// Add system prompt as user message
+			messages.push({
+				role: "user",
+				content: systemPrompt,
+			});
+			// Check if the first message is an assistant message
+			if (conversation.messages.length === 0 || conversation.messages[0].type !== MessageType.Assistant) {
+				// Add assistant message acknowledging the instruction
+				messages.push({
+					role: "assistant",
+					content: "Instruction fully read and understood",
+				});
+			}
+		} else {
+			// Add system prompt as system message
+			messages.push({
+				role: "system",
+				content: systemPrompt,
+			});
+		}
+
 		for (let i = 0; i < conversation.messages.length; i++) {
 			let message = conversation.messages[i];
 			let content;
