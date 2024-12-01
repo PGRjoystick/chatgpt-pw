@@ -244,7 +244,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string, xapi?: boolean) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -264,7 +264,8 @@ class ChatGPT {
 			useAltApi,
 			providedAltApiKey,
 			providedAltApiEndpoint,
-			xapi
+			xapi,
+			systemPromptUnsupported
 		);
 	}
 
@@ -290,7 +291,7 @@ class ChatGPT {
 		return undefined;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string, xapi?: boolean) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 	
@@ -305,7 +306,7 @@ class ChatGPT {
 			}
 		}
 		let responseStr;
-		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, InstructionPrompt, useAltApi);
+		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, InstructionPrompt, useAltApi, systemPromptUnsupported);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
 			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
