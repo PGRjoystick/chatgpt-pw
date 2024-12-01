@@ -364,7 +364,14 @@ class ChatGPT {
 				if (response.data.status === 500 && response.data.error) {
 					throw new Error(response.data.error);
 				} else {
-					responseStr = response.data.choices[0]?.message?.content;
+					// Check for different response structures
+					if (response.data.choices && response.data.choices[0]?.message?.content) {
+						responseStr = response.data.choices[0].message.content;
+					} else if (response.data.responses && response.data.responses[0]?.message?.content) {
+						responseStr = response.data.responses[0].message.content;
+					} else {
+						throw new Error("Unexpected response structure");
+					}
 				}
 			}
 	
