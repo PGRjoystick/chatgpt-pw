@@ -314,7 +314,7 @@ class ChatGPT {
 			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
-				...(xapi ? { "x-api-key": providedAltApiKey || this.getSequentialAltApiKey() } : { Authorization: `Bearer ${providedAltApiKey || this.getSequentialAltApiKey()}` }),
+				...(xapi ? { "x-api-key": this.getSequentialAltApiKey(providedAltApiKey) } : { Authorization: `Bearer ${ this.getSequentialAltApiKey(providedAltApiKey)}` }),
 				...additionalHeaders
 			} : {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
