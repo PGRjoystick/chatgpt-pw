@@ -243,7 +243,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object) {
 		return await this.askStream(
 			(data) => { },
 			(data) => { },
@@ -283,16 +283,17 @@ class ChatGPT {
 		return conversation;
 	}
 
-	private getSequentialAltApiKey(): string | undefined {
-		if (this.options.alt_api_key && this.options.alt_api_key.length > 0) {
-			const key = this.options.alt_api_key[this.currentKeyIndex];
-			this.currentKeyIndex = (this.currentKeyIndex + 1) % this.options.alt_api_key.length;
+	private getSequentialAltApiKey(keys?: string[]): string | undefined {
+		const apiKeys = keys && keys.length > 0 ? keys : this.options.alt_api_key;
+		if (apiKeys && apiKeys.length > 0) {
+			const key = apiKeys[this.currentKeyIndex];
+			this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeys.length;
 			return key;
 		}
 		return undefined;
 	}
 
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string, providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 	
@@ -374,7 +375,6 @@ class ChatGPT {
 					} else if (response.data.responses && response.data.responses[0]?.message?.content) {
 						responseStr = response.data.responses[0].message.content;
 					} else if (response.data.message && Array.isArray(response.data.message.content)) {
-						// New structure: Extract text from content array
 						responseStr = response.data.message.content.map(item => item.text).join(' ');
 					} else {
 						throw new Error("Unexpected response structure");
