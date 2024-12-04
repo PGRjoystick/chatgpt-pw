@@ -331,7 +331,6 @@ class ChatGPT {
 				messages: promptStr,
 				temperature: this.options.temperature,
 				max_tokens: this.options.max_tokens,
-				top_p: this.options.top_p,
 				frequency_penalty: this.options.frequency_penalty,
 				presence_penalty: this.options.presence_penalty,
 				stream: this.options.stream,
