@@ -373,6 +373,9 @@ class ChatGPT {
 						responseStr = response.data.choices[0].message.content;
 					} else if (response.data.responses && response.data.responses[0]?.message?.content) {
 						responseStr = response.data.responses[0].message.content;
+					} else if (response.data.message && Array.isArray(response.data.message.content)) {
+						// New structure: Extract text from content array
+						responseStr = response.data.message.content.map(item => item.text).join(' ');
 					} else {
 						throw new Error("Unexpected response structure");
 					}
