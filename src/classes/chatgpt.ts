@@ -293,7 +293,7 @@ class ChatGPT {
 		}
 		return undefined;
 	}
-
+	
 	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, InstructionPrompt?: string, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
@@ -311,6 +311,7 @@ class ChatGPT {
 		let responseStr;
 		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, InstructionPrompt, useAltApi, systemPromptUnsupported);
 		let prompt_tokens = this.countTokens(promptStr);
+		let endpointUrl
 		try {
 			let altApiKeys = await this.getSequentialAltApiKey(providedAltApiKey);
 	
@@ -346,13 +347,15 @@ class ChatGPT {
 				requestBody.version = version;
 			}
 	
+			endpointUrl = useAltApi ? providedAltApiEndpoint || this.options.alt_endpoint : this.options.endpoint;
+	
 			// Log outgoing request if debug is enabled
 			if (this.options.debug) {
-				fs.appendFileSync('./api.log', `Outgoing Request:\nHeaders: ${JSON.stringify(headers, null, 2)}\nBody: ${JSON.stringify(requestBody, null, 2)}\n\n`);
+				fs.appendFileSync('./api.log', `Outgoing Request:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(headers, null, 2)}\nBody: ${JSON.stringify(requestBody, null, 2)}\n\n`);
 			}
 	
 			const response = await axios.post(
-				useAltApi ? providedAltApiEndpoint || this.options.alt_endpoint : this.options.endpoint,
+				endpointUrl,
 				requestBody,
 				{
 					responseType: this.options.stream ? "stream" : "json",
@@ -362,7 +365,7 @@ class ChatGPT {
 	
 			// Log incoming response if debug is enabled
 			if (this.options.debug) {
-				fs.appendFileSync('./api.log', `Incoming Response:\nHeaders: ${JSON.stringify(response.headers, null, 2)}\nBody: ${JSON.stringify(response.data, null, 2)}\n\n`);
+				fs.appendFileSync('./api.log', `Incoming Response:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(response.headers, null, 2)}\nBody: ${JSON.stringify(response.data, null, 2)}\n\n`);
 			}
 	
 			if (this.options.stream) {
@@ -445,7 +448,7 @@ class ChatGPT {
 	
 				// Log error response if debug is enabled
 				if (this.options.debug) {
-					fs.appendFileSync('./api.log', `Error Response:\nHeaders: ${JSON.stringify(error.response.headers, null, 2)}\nBody: ${JSON.stringify(errorResponseJson, null, 2)}\n\n`);
+					fs.appendFileSync('./api.log', `Error Response:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(error.response.headers, null, 2)}\nBody: ${JSON.stringify(errorResponseJson, null, 2)}\n\n`);
 				}
 	
 				if (error.response.status === 429 && useAltApi) {
