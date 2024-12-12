@@ -60,6 +60,7 @@ class ChatGPT {
 			alt_api_key:  Array.isArray(options?.alt_api_key) ? options.alt_api_key : [options?.alt_api_key],
 			base_instruction: options?.base_instruction,
 			xapi: options?.xapi,
+			debug: options?.debug,
 		};
 	}
 
@@ -311,12 +312,12 @@ class ChatGPT {
 		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, InstructionPrompt, useAltApi, systemPromptUnsupported);
 		let prompt_tokens = this.countTokens(promptStr);
 		try {
-			let altApiKeys = await this.getSequentialAltApiKey(providedAltApiKey)
-
+			let altApiKeys = await this.getSequentialAltApiKey(providedAltApiKey);
+	
 			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
 				"Content-Type": "application/json",
-				...(xapi ? { "x-api-key": altApiKeys } : { Authorization: `Bearer ${ altApiKeys}` }),
+				...(xapi ? { "x-api-key": altApiKeys } : { Authorization: `Bearer ${altApiKeys}` }),
 				...additionalHeaders
 			} : {
 				Accept: this.options.stream ? "text/event-stream" : "application/json",
@@ -324,16 +325,17 @@ class ChatGPT {
 				...(xapi ? { "x-api-key": oAIKey.key } : { Authorization: `Bearer ${oAIKey.key}` }),
 				...additionalHeaders
 			};
-
+	
 			if (reverse_url) {
 				headers["reverse_url"] = reverse_url;
 			}
-
+	
 			const requestBody: any = {
 				model: gptModel || this.options.model,
 				messages: promptStr,
 				temperature: this.options.temperature,
 				max_tokens: this.options.max_tokens,
+				top_p: this.options.top_p,
 				frequency_penalty: this.options.frequency_penalty,
 				presence_penalty: this.options.presence_penalty,
 				stream: this.options.stream,
@@ -343,7 +345,12 @@ class ChatGPT {
 			if (version !== undefined) {
 				requestBody.version = version;
 			}
-
+	
+			// Log outgoing request if debug is enabled
+			if (this.options.debug) {
+				fs.appendFileSync('./api.log', `Outgoing Request:\nHeaders: ${JSON.stringify(headers, null, 2)}\nBody: ${JSON.stringify(requestBody, null, 2)}\n\n`);
+			}
+	
 			const response = await axios.post(
 				useAltApi ? providedAltApiEndpoint || this.options.alt_endpoint : this.options.endpoint,
 				requestBody,
@@ -352,6 +359,11 @@ class ChatGPT {
 					headers: headers
 				},
 			);
+	
+			// Log incoming response if debug is enabled
+			if (this.options.debug) {
+				fs.appendFileSync('./api.log', `Incoming Response:\nHeaders: ${JSON.stringify(response.headers, null, 2)}\nBody: ${JSON.stringify(response.data, null, 2)}\n\n`);
+			}
 	
 			if (this.options.stream) {
 				responseStr = "";
@@ -418,19 +430,24 @@ class ChatGPT {
 		} catch (error: any) {
 			if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
 				let errorResponseStr = "";
-		
+	
 				// Assuming error.response.data is a string or a JSON object
 				if (typeof error.response.data === 'string') {
 					errorResponseStr = error.response.data;
 				} else if (typeof error.response.data === 'object') {
 					errorResponseStr = JSON.stringify(error.response.data);
 				}
-		
+	
 				const errorResponseJson = JSON.parse(errorResponseStr);
-		
+	
 				// Log the entire error response JSON for debugging
 				console.error("Error response JSON:", errorResponseJson);
-		
+	
+				// Log error response if debug is enabled
+				if (this.options.debug) {
+					fs.appendFileSync('./api.log', `Error Response:\nHeaders: ${JSON.stringify(error.response.headers, null, 2)}\nBody: ${JSON.stringify(errorResponseJson, null, 2)}\n\n`);
+				}
+	
 				if (error.response.status === 429 && useAltApi) {
 					this.currentKeyIndex = (this.currentKeyIndex + 1) % this.options.alt_api_key.length;
 					return this.askStream(data, usage, prompt, conversationId, userName, groupName, groupDesc, totalParticipants, imageUrl, loFi, gptModel, maxContextWindowInput, reverse_url, version, InstructionPrompt, useAltApi);

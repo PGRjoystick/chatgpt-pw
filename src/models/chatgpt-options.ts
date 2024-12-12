@@ -15,6 +15,7 @@ interface ChatGPTOptions {
 	alt_api_key?: string | string[];
 	base_instruction?: string;
 	xapi?: boolean;
+	debug: boolean;
 }
 
 export default ChatGPTOptions;
