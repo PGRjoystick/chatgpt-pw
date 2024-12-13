@@ -113,7 +113,7 @@ class ChatGPT {
 	private getInstructions(username: string, groupName?: string, groupDesc?: string, totalParticipants?: string, InstructionPrompt?: string, useAltApi?: boolean, isAyana?: boolean): string {
 		const currentDate = `${this.getCurrentDay()}, ${this.getToday()}`;
 		const currentTime = this.getTime();
-		const baseInstructions = `${this.options.instructions}\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}${useAltApi && isAyana ? `\nBase Instruction: ${this.options.base_instruction}` : ``}${ InstructionPrompt ? `\nAdditional Instruction: ${InstructionPrompt}` : ``}\n\n`;
+		const baseInstructions = `${this.options.instructions}\nCurrent date: ${currentDate}\nCurrent time: ${currentTime}${useAltApi && isAyana ? `\nInstruction: ${this.options.base_instruction}` : ``}\n${InstructionPrompt}`;
 
 		if (groupName) {
 			const roleplay = this.startsWithIgnoreCase(groupName, "roleplay");
