@@ -166,7 +166,7 @@ class ChatGPT {
 			return null;
 		}
 	}
-	
+
 	private formatMessageContent(content: any) {
 		if (Array.isArray(content)) {
 			let textPart = content.find(part => part.type === 'text')?.text || '';
@@ -312,22 +312,36 @@ class ChatGPT {
 		let responseStr;
 		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana);
 		let prompt_tokens = this.countTokens(promptStr);
-		let endpointUrl
+		let endpointUrl, headers
 		try {
-			let altApiKeys = await this.getSequentialAltApiKey(providedAltApiKey);
-	
-			let headers = useAltApi && this.options.alt_endpoint && this.options.alt_api_key ? {
-				Accept: this.options.stream ? "text/event-stream" : "application/json",
-				"Content-Type": "application/json",
-				...(xapi ? { "x-api-key": altApiKeys } : { Authorization: `Bearer ${altApiKeys}` }),
-				...additionalHeaders
-			} : {
-				Accept: this.options.stream ? "text/event-stream" : "application/json",
-				"Content-Type": "application/json",
-				...(xapi ? { "x-api-key": oAIKey.key } : { Authorization: `Bearer ${oAIKey.key}` }),
-				...additionalHeaders
-			};
-	
+			try {
+				if (useAltApi && this.options.alt_endpoint) {
+					const altApiKeys = await this.getSequentialAltApiKey(providedAltApiKey);
+					if (!altApiKeys) {
+						throw new Error("Alternative API key is undefined");
+					}
+					headers = {
+						Accept: this.options.stream ? "text/event-stream" : "application/json",
+						"Content-Type": "application/json",
+						...(xapi ? { "x-api-key": altApiKeys } : { Authorization: `Bearer ${altApiKeys}` }),
+						...additionalHeaders
+					};
+				} else {
+					const oAIKey = this.getOpenAIKey();
+					if (!oAIKey?.key) {
+						throw new Error("OpenAI API key is undefined");
+					}
+					headers = {
+						Accept: this.options.stream ? "text/event-stream" : "application/json",
+						"Content-Type": "application/json",
+						...(xapi ? { "x-api-key": oAIKey.key } : { Authorization: `Bearer ${oAIKey.key}` }),
+						...additionalHeaders
+					};
+				}
+			} catch (error) {
+				throw new Error(`Failed to set up API headers: ${(error as any).message}`);
+			}
+		
 			if (reverse_url) {
 				headers["reverse_url"] = reverse_url;
 			}
