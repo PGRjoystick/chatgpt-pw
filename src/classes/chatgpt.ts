@@ -377,7 +377,7 @@ class ChatGPT {
 					headers: headers
 				},
 			);
-	
+
 			// Log incoming response if debug is enabled
 			if (this.options.debug) {
 				fs.appendFileSync('./api.log', `Incoming Response:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(response.headers, null, 2)}\nBody: ${JSON.stringify(response.data, null, 2)}\n\n`);
@@ -424,9 +424,9 @@ class ChatGPT {
 			};
 	
 			let usageDataResponse = {
-				prompt_tokens: response.data.usage.prompt_tokens,
-				completion_tokens: response.data.usage.completion_tokens,
-				total_tokens: response.data.usage.total_tokens
+				prompt_tokens: response.data.usage.prompt_tokens || response.data.usage.tokens.input_tokens,
+				completion_tokens: response.data.usage.completion_tokens || response.data.usage.tokens.output_tokens,
+				total_tokens: response.data.usage.total_tokens || response.data.usage.tokens.input_tokens + response.data.usage.tokens.output_tokens,
 			}
 	
 			usage(usageData);
@@ -443,7 +443,7 @@ class ChatGPT {
 				date: Date.now(),
 				usage: usageDataResponse
 			});
-	
+
 			return responseStr;
 		} catch (error: any) {
 			if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
