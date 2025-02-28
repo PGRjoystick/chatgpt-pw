@@ -416,20 +416,38 @@ class ChatGPT {
 	
 			let completion_tokens = encode(responseStr).length;
 	
-			let usageData = {
-				key: oAIKey.key,
-				prompt_tokens: prompt_tokens,
-				completion_tokens: completion_tokens,
-				total_tokens: prompt_tokens + completion_tokens,
-			};
-	
-			let usageDataResponse = {
-				prompt_tokens: response.data.usage.prompt_tokens || response.data.usage.tokens.input_tokens,
-				completion_tokens: response.data.usage.completion_tokens || response.data.usage.tokens.output_tokens,
-				total_tokens: response.data.usage.total_tokens || response.data.usage.tokens.input_tokens + response.data.usage.tokens.output_tokens,
-			}
-	
-			usage(usageData);
+            let usageData = {
+                key: oAIKey.key,
+                prompt_tokens: prompt_tokens,
+                completion_tokens: completion_tokens,
+                total_tokens: prompt_tokens + completion_tokens,
+            };
+            
+            // Safely get usage data from response
+            let usageDataResponse;
+            if (response.data.usage) {
+                usageDataResponse = {
+                    prompt_tokens: response.data.usage.prompt_tokens || 0,
+                    completion_tokens: response.data.usage.completion_tokens || 0,
+                    total_tokens: response.data.usage.total_tokens || 0,
+                };
+            } else if (response.data.usage?.tokens) {
+                usageDataResponse = {
+                    prompt_tokens: response.data.usage.tokens.input_tokens || 0,
+                    completion_tokens: response.data.usage.tokens.output_tokens || 0,
+                    total_tokens: (response.data.usage.tokens.input_tokens || 0) + (response.data.usage.tokens.output_tokens || 0),
+                };
+            } else {
+                // Fallback to calculated tokens if no usage data in response
+                console.log
+                usageDataResponse = {
+                    prompt_tokens: prompt_tokens,
+                    completion_tokens: completion_tokens,
+                    total_tokens: prompt_tokens + completion_tokens,
+                };
+            }
+            
+            usage(usageData);
 			if (this.onUsage) this.onUsage(usageData);
 	
 			oAIKey.tokens += usageData.total_tokens;
