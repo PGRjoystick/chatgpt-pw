@@ -466,7 +466,26 @@ class ChatGPT {
 		} catch (error: any) {
 			if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
 				let errorResponseStr = "";
-	
+				
+			// Log all errors if debug is enabled, regardless of structure
+			if (this.options.debug) {
+				fs.appendFileSync('./api.log', `Error occurred:\nURL: ${endpointUrl}\n`);
+				
+				if (error.response) {
+					fs.appendFileSync('./api.log', `Status: ${error.response.status}\n`);
+					fs.appendFileSync('./api.log', `Headers: ${JSON.stringify(error.response.headers || {}, null, 2)}\n`);
+					
+					if (error.response.data) {
+						const dataStr = typeof error.response.data === 'object' 
+							? JSON.stringify(error.response.data, null, 2)
+							: String(error.response.data);
+						fs.appendFileSync('./api.log', `Response data: ${dataStr}\n`);
+					}
+				}
+				
+				fs.appendFileSync('./api.log', `Error message: ${error.message}\n`);
+				fs.appendFileSync('./api.log', `Stack trace: ${error.stack}\n\n`);
+			}
 				// Assuming error.response.data is a string or a JSON object
 				if (typeof error.response.data === 'string') {
 					errorResponseStr = error.response.data;
@@ -490,7 +509,6 @@ class ChatGPT {
 				}
 				throw new Error(errorResponseJson.error.message);
 			} else {
-				console.error("[GPT-PW] Error:", error.message);
 				throw new Error(error.message);
 			}
 		}
