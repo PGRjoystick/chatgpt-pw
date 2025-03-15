@@ -464,9 +464,6 @@ class ChatGPT {
 
 			return responseStr;
 		} catch (error: any) {
-			if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
-				let errorResponseStr = "";
-				
 			// Log all errors if debug is enabled, regardless of structure
 			if (this.options.debug) {
 				fs.appendFileSync('./api.log', `Error occurred:\nURL: ${endpointUrl}\n`);
@@ -486,6 +483,8 @@ class ChatGPT {
 				fs.appendFileSync('./api.log', `Error message: ${error.message}\n`);
 				fs.appendFileSync('./api.log', `Stack trace: ${error.stack}\n\n`);
 			}
+			if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
+				let errorResponseStr = "";
 				// Assuming error.response.data is a string or a JSON object
 				if (typeof error.response.data === 'string') {
 					errorResponseStr = error.response.data;
