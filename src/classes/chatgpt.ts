@@ -13,7 +13,6 @@ import { UsageStats } from "src/models/message.js";
 import * as fs from 'fs';
 import * as path from 'path';
 
-
 const startsWithIgnoreCase = (str, prefix) => str.toLowerCase().startsWith(prefix.toLowerCase());
 
 class ChatGPT {
@@ -491,6 +490,7 @@ class ChatGPT {
 				}
 				throw new Error(errorResponseJson.error.message);
 			} else {
+				console.error("[GPT-PW] Error:", error.message);
 				throw new Error(error.message);
 			}
 		}
