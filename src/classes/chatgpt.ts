@@ -15,6 +15,8 @@ import * as path from 'path';
 
 const startsWithIgnoreCase = (str, prefix) => str.toLowerCase().startsWith(prefix.toLowerCase());
 
+
+
 class ChatGPT {
 	public options: Options;
 	private db: AppDbContext;
@@ -61,6 +63,18 @@ class ChatGPT {
 			xapi: options?.xapi,
 			debug: options?.debug,
 		};
+	}
+	
+	private async convertImageUrlToBase64(imageUrl: string): Promise<string> {
+	  try {
+		const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+		const contentType = response.headers['content-type'] || 'image/jpeg';
+		const base64 = Buffer.from(response.data, 'binary').toString('base64');
+		return `data:${contentType};base64,${base64}`;
+	  } catch (error) {
+		console.error('Error converting image to base64:', error);
+		throw new Error(`Failed to convert image to base64: ${(error as any).message}`);
+	  }
 	}
 
 	private getOpenAIKey(): OpenAIKey {
@@ -243,32 +257,33 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object) {
-		return await this.askStream(
-			(data) => { },
-			(data) => { },
-			prompt,
-			conversationId,
-			userName,
-			groupName,
-			groupDesc,
-			totalParticipants,
-			imageUrl,
-			loFi,
-			gptModel,
-			maxContextWindowInput,
-			reverse_url,
-			version,
-			personalityPrompt,
-			isAyana,
-			useAltApi,
-			providedAltApiKey,
-			providedAltApiEndpoint,
-			xapi,
-			systemPromptUnsupported,
-			additionalParameters,
-			additionalHeaders
-		);
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean) {
+	  return await this.askStream(
+		(data) => { },
+		(data) => { },
+		prompt,
+		conversationId,
+		userName,
+		groupName,
+		groupDesc,
+		totalParticipants,
+		imageUrl,
+		loFi,
+		gptModel,
+		maxContextWindowInput,
+		reverse_url,
+		version,
+		personalityPrompt,
+		isAyana,
+		useAltApi,
+		providedAltApiKey,
+		providedAltApiEndpoint,
+		xapi,
+		systemPromptUnsupported,
+		additionalParameters,
+		additionalHeaders,
+		imgUrlUnsupported
+	  );
 	}
 
 	public getConversation(conversationId: string, userName: string = "User") {
@@ -294,7 +309,112 @@ class ChatGPT {
 		return undefined;
 	}
 	
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object) {
+	private async generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, personalityPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean, isAyana?: boolean, imgUrlUnsupported?: boolean): Promise<Message[]> {
+	  let content;
+	  if (imageUrl) {
+		// Convert image URL to base64 if needed
+		const imageUrlToUse = imgUrlUnsupported ? await this.convertImageUrlToBase64(imageUrl) : imageUrl;
+		
+		if (loFi) {
+		  content = [
+			{ type: 'text', text: prompt },
+			{ type: 'image_url', image_url: { url: imageUrlToUse, detail: 'low' } }
+		  ];
+		} else {
+		  content = [
+			{ type: 'text', text: prompt },
+			{ type: 'image_url', image_url: { url: imageUrlToUse } }
+		  ];
+		}
+	  } else {
+		content = prompt;
+	  }
+	
+	  if (prompt) {
+		conversation.messages.push({
+		  id: randomUUID(),
+		  content: content,
+		  type: MessageType.User,
+		  date: Date.now(),
+		});
+	  }
+	
+	  let messages = await this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported);
+	  let promptEncodedLength = this.countTokens(messages);
+	  let totalLength = promptEncodedLength + this.options.max_tokens;
+	
+	  const maxContextWindow = maxContextWindowInput || this.options.max_conversation_tokens;
+	
+	  while (totalLength > maxContextWindow) {
+		this.archiveOldestMessage(conversation, this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, personalityPrompt, useAltApi, isAyana), false);
+		messages = await this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported);
+		promptEncodedLength = this.countTokens(messages);
+		totalLength = promptEncodedLength + this.options.max_tokens;
+	  }
+	
+	  conversation.lastActive = Date.now();
+	  return messages;
+	}
+	
+	private async generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, personalityPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean, isAyana?: boolean, imgUrlUnsupported?: boolean): Promise<Message[]> {
+	  let messages: Message[] = [];
+	  const systemPrompt = this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, personalityPrompt, useAltApi, isAyana);
+	
+	  if (systemPromptUnsupported) {
+		// Add system prompt as user message
+		messages.push({
+		  role: "user",
+		  content: systemPrompt,
+		});
+		// Check if the first message is an assistant message
+		if (conversation.messages.length === 0 || conversation.messages[0].type !== MessageType.Assistant) {
+		  // Add assistant message acknowledging the instruction
+		  messages.push({
+			role: "assistant",
+			content: "Instruction fully read and understood",
+		  });
+		}
+	  } else {
+		// Add system prompt as system message
+		messages.push({
+		  role: "system",
+		  content: systemPrompt,
+		});
+	  }
+	
+	  for (let i = 0; i < conversation.messages.length; i++) {
+		let message = conversation.messages[i];
+		let content;
+		if (Array.isArray(message.content)) {
+		  content = await Promise.all(message.content.map(async item => {
+			if (item.type === 'text') {
+			  return { type: 'text', text: item.text };
+			} else if (item.type === 'image_url') {
+			  // Convert image URL to base64 if needed
+			  const imageUrl = item.image_url.url;
+			  const imageUrlToUse = imgUrlUnsupported && !imageUrl.startsWith('data:') 
+				? await this.convertImageUrlToBase64(imageUrl) 
+				: imageUrl;
+			  
+			  if (loFi) {
+				return { type: 'image_url', image_url: { url: imageUrlToUse, detail: 'low' } };
+			  } else {
+				return { type: 'image_url', image_url: { url: imageUrlToUse } };
+			  }
+			}
+		  }));
+		} else {
+		  content = message.content;
+		}
+		messages.push({
+		  role: message.type === MessageType.User ? "user" : "assistant",
+		  content: content,
+		});
+	  }
+	  return messages;
+	}
+
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean) {
 		let oAIKey = this.getOpenAIKey();
 		let conversation = this.getConversation(conversationId, userName);
 	
@@ -308,8 +428,9 @@ class ChatGPT {
 				return "Your message was flagged as inappropriate and was not sent.";
 			}
 		}
+
 		let responseStr;
-		let promptStr = this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana);
+		let promptStr = await this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported);
 		let prompt_tokens = this.countTokens(promptStr);
 		let endpointUrl, headers
 		try {
@@ -589,101 +710,7 @@ class ChatGPT {
 	}
 }
 
-	private generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, personalityPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean, isAyana?: boolean): Message[] {
-		let content;
-		if (imageUrl) {
-			if (loFi) {
-				content = [
-					{ type: 'text', text: prompt },
-					{ type: 'image_url', image_url: { url: imageUrl, detail: 'low' } }
-				];
-			} else {
-				content = [
-					{ type: 'text', text: prompt },
-					{ type: 'image_url', image_url: { url: imageUrl } }
-				];
-			}
-		} else {
-			content = prompt;
-		}
-	
-		if (prompt) {
-			conversation.messages.push({
-				id: randomUUID(),
-				content: content,
-				type: MessageType.User,
-				date: Date.now(),
-			});
-		}
-	
-		let messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana);
-		let promptEncodedLength = this.countTokens(messages);
-		let totalLength = promptEncodedLength + this.options.max_tokens;
-	
-		const maxContextWindow = maxContextWindowInput || this.options.max_conversation_tokens;
-	
-		while (totalLength > maxContextWindow) {
-			this.archiveOldestMessage(conversation, this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, personalityPrompt, useAltApi, isAyana), false);
-			messages = this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported);
-			promptEncodedLength = this.countTokens(messages);
-			totalLength = promptEncodedLength + this.options.max_tokens;
-		}
-	
-		conversation.lastActive = Date.now();
-		return messages;
-	}
-	
-	private generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, personalityPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean, isAyana?: boolean): Message[] {
-		let messages: Message[] = [];
-		const systemPrompt = this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, personalityPrompt, useAltApi, isAyana);
-	
-		if (systemPromptUnsupported) {
-			// Add system prompt as user message
-			messages.push({
-				role: "user",
-				content: systemPrompt,
-			});
-			// Check if the first message is an assistant message
-			if (conversation.messages.length === 0 || conversation.messages[0].type !== MessageType.Assistant) {
-				// Add assistant message acknowledging the instruction
-				messages.push({
-					role: "assistant",
-					content: "Instruction fully read and understood",
-				});
-			}
-		} else {
-			// Add system prompt as system message
-			messages.push({
-				role: "system",
-				content: systemPrompt,
-			});
-		}
 
-		for (let i = 0; i < conversation.messages.length; i++) {
-			let message = conversation.messages[i];
-			let content;
-			if (Array.isArray(message.content)) {
-				content = message.content.map(item => {
-					if (item.type === 'text') {
-						return { type: 'text', text: item.text };
-					} else if (item.type === 'image_url') {
-						if (loFi) {
-							return { type: 'image_url', image_url: { url: item.image_url.url, detail: 'low' } };
-						} else {
-							return { type: 'image_url', image_url: { url: item.image_url.url } };
-						}
-					}
-				});
-			} else {
-				content = message.content;
-			}
-			messages.push({
-				role: message.type === MessageType.User ? "user" : "assistant",
-				content: content,
-			});
-		}
-		return messages;
-	}
 
 	public async moderate(prompt: string, key: string) {
 		try {
