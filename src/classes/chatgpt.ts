@@ -212,6 +212,33 @@ class ChatGPT {
 		}
 	}
 
+	// Deletes the most recent message containing vision content (image_url) in the conversation
+	public deleteLastVisionMessage(conversationId: string) {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+		  // Search from most recent message backward
+		  for (let i = conversation.messages.length - 1; i >= 0; i--) {
+			const message = conversation.messages[i];
+			const content = message.content;
+			
+			// Check if this is a vision message (content is an array with an image_url element)
+			if (Array.isArray(content) && content.some(part => part.type === 'image_url')) {
+			  // Remove this message
+			  conversation.messages.splice(i, 1);
+			  conversation.lastActive = Date.now();
+			  console.log(`Vision message at index ${i} removed from conversation ${conversationId}`);
+			  return conversation;
+			}
+		  }
+		  console.log("No vision messages found in the conversation.");
+		} else {
+		  console.log("There are no messages in the conversation.");
+		}
+		
+		return conversation;
+	  }
+
 	public deleteLastTwoMessages(conversationId: string) {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (conversation && conversation.messages && conversation.messages.length >= 2) {
