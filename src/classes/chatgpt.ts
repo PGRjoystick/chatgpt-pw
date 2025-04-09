@@ -452,223 +452,273 @@ class ChatGPT {
 	}
 
 	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean) {
-		let oAIKey = this.getOpenAIKey();
-		let conversation = this.getConversation(conversationId, userName);
-	
-		if (this.options.moderation) {
-			let flagged = await this.moderate(prompt, oAIKey.key);
-			if (flagged) {
-				for (let chunk in "Your message was flagged as inappropriate and was not sent.".split("")) {
-					data(chunk);
-					await this.wait(100);
-				}
-				return "Your message was flagged as inappropriate and was not sent.";
-			}
-		}
-
-		let responseStr;
-		let promptStr = await this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported);
-		let prompt_tokens = this.countTokens(promptStr);
-		let endpointUrl, headers
-		try {
-			try {
-				if (useAltApi && this.options.alt_endpoint) {
-					const altApiKeys = await this.getRandomApiKey(providedAltApiKey);
-					if (!altApiKeys) {
-						throw new Error("Alternative API key is undefined");
-					}
-					headers = {
-						Accept: this.options.stream ? "text/event-stream" : "application/json",
-						"Content-Type": "application/json",
-						...(xapi ? { "x-api-key": altApiKeys } : { Authorization: `Bearer ${altApiKeys}` }),
-						...additionalHeaders
-					};
-				} else {
-					const oAIKey = this.getOpenAIKey();
-					if (!oAIKey?.key) {
-						throw new Error("OpenAI API key is undefined");
-					}
-					headers = {
-						Accept: this.options.stream ? "text/event-stream" : "application/json",
-						"Content-Type": "application/json",
-						...(xapi ? { "x-api-key": oAIKey.key } : { Authorization: `Bearer ${oAIKey.key}` }),
-						...additionalHeaders
-					};
-				}
-			} catch (error) {
-				throw new Error(`Failed to set up API headers: ${(error as any).message}`);
-			}
+		const MAX_RETRIES = 5;
+		let retryCount = 0;
+		let apiKeyArray = providedAltApiKey || this.options.alt_api_key;
 		
-			if (reverse_url) {
-				headers["reverse_url"] = reverse_url;
-			}
-	
-			const requestBody: any = {
-				model: gptModel || this.options.model,
-				messages: promptStr,
-				temperature: this.options.temperature,
-				max_tokens: this.options.max_tokens,
-				top_p: this.options.top_p,
-				frequency_penalty: this.options.frequency_penalty,
-				presence_penalty: this.options.presence_penalty,
-				stream: this.options.stream,
-				...additionalParameters
-			};
-	
-			if (version !== undefined) {
-				requestBody.version = version;
-			}
-	
-			endpointUrl = useAltApi ? providedAltApiEndpoint || this.options.alt_endpoint : this.options.endpoint;
-	
-			// Log outgoing request if debug is enabled
-			if (this.options.debug) {
-				fs.appendFileSync('./api.log', `Outgoing Request:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(headers, null, 2)}\nBody: ${JSON.stringify(requestBody, null, 2)}\n\n`);
-			}
-	
-			const response = await axios.post(
-				endpointUrl,
-				requestBody,
-				{
-					responseType: this.options.stream ? "stream" : "json",
-					headers: headers
-				},
-			);
-
-			// Log incoming response if debug is enabled
-			if (this.options.debug) {
-				fs.appendFileSync('./api.log', `Incoming Response:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(response.headers, null, 2)}\nBody: ${JSON.stringify(response.data, null, 2)}\n\n`);
-			}
-	
-			if (this.options.stream) {
-				responseStr = "";
-				for await (const message of this.streamCompletion(response.data)) {
-					try {
-						const parsed = JSON.parse(message);
-						const { content } = parsed.choices[0].delta;
-						if (content) {
-							responseStr += content;
-							data(content);
+		// Function to check if API keys are available for retry
+		const canRetry = () => {
+			return Array.isArray(apiKeyArray) && 
+				   apiKeyArray.length > 0 && 
+				   retryCount < MAX_RETRIES;
+		};
+		
+		// Recursive retry function
+		const executeWithRetry = async (): Promise<string> => {
+			try {
+				let oAIKey = this.getOpenAIKey();
+				let conversation = this.getConversation(conversationId, userName);
+			
+				if (this.options.moderation) {
+					let flagged = await this.moderate(prompt, oAIKey.key);
+					if (flagged) {
+						for (let chunk in "Your message was flagged as inappropriate and was not sent.".split("")) {
+							data(chunk);
+							await this.wait(100);
 						}
-					} catch (error) {
-						console.error("Could not JSON parse stream message", message, error);
+						return "Your message was flagged as inappropriate and was not sent.";
 					}
 				}
-			} else {
-				if (response.data.status === 500 && response.data.error) {
-					throw new Error(response.data.error);
-				} else {
-					// Check for different response structures
-					if (response.data.choices && response.data.choices[0]?.message?.content) {
-						responseStr = response.data.choices[0].message.content;
-					} else if (response.data.responses && response.data.responses[0]?.message?.content) {
-						responseStr = response.data.responses[0].message.content;
-					} else if (response.data.message && Array.isArray(response.data.message.content)) {
-						responseStr = response.data.message.content.map(item => item.text).join(' ');
-					} else {
-						console.error("Unexpected response structure:", response.data);
-						throw new Error("Unexpected response structure");
-					}
-				}
-			}
-	
-			let completion_tokens = encode(responseStr).length;
-	
-            let usageData = {
-                key: oAIKey.key,
-                prompt_tokens: prompt_tokens,
-                completion_tokens: completion_tokens,
-                total_tokens: prompt_tokens + completion_tokens,
-            };
-            
-            // Safely get usage data from response
-            let usageDataResponse;
-            if (response.data.usage) {
-                usageDataResponse = {
-                    prompt_tokens: response.data.usage.prompt_tokens || 0,
-                    completion_tokens: response.data.usage.completion_tokens || 0,
-                    total_tokens: response.data.usage.total_tokens || 0,
-                };
-            } else if (response.data.usage?.tokens) {
-                usageDataResponse = {
-                    prompt_tokens: response.data.usage.tokens.input_tokens || 0,
-                    completion_tokens: response.data.usage.tokens.output_tokens || 0,
-                    total_tokens: (response.data.usage.tokens.input_tokens || 0) + (response.data.usage.tokens.output_tokens || 0),
-                };
-            } else {
-                // Fallback to calculated tokens if no usage data in response
-                console.log
-                usageDataResponse = {
-                    prompt_tokens: prompt_tokens,
-                    completion_tokens: completion_tokens,
-                    total_tokens: prompt_tokens + completion_tokens,
-                };
-            }
-            
-            usage(usageData);
-			if (this.onUsage) this.onUsage(usageData);
-	
-			oAIKey.tokens += usageData.total_tokens;
-			oAIKey.balance = (oAIKey.tokens / 1000) * this.options.price;
-			oAIKey.queries++;
-	
-			conversation.messages.push({
-				id: randomUUID(),
-				content: responseStr,
-				type: MessageType.Assistant,
-				date: Date.now(),
-				usage: usageDataResponse
-			});
 
-			return responseStr;
-		} catch (error: any) {
-			// Log all errors if debug is enabled, regardless of structure
-			if (this.options.debug) {
-				fs.appendFileSync('./api.log', `Error occurred:\nURL: ${endpointUrl}\n`);
+				let responseStr;
+				let promptStr = await this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported);
+				let prompt_tokens = this.countTokens(promptStr);
+				let endpointUrl, headers;
 				
-				if (error.response) {
-					fs.appendFileSync('./api.log', `Status: ${error.response.status}\n`);
-					fs.appendFileSync('./api.log', `Headers: ${JSON.stringify(error.response.headers || {}, null, 2)}\n`);
-					
-					if (error.response.data) {
-						const dataStr = typeof error.response.data === 'object' 
-							? JSON.stringify(error.response.data, null, 2)
-							: String(error.response.data);
-						fs.appendFileSync('./api.log', `Response data: ${dataStr}\n`);
+				try {
+					if (useAltApi && this.options.alt_endpoint) {
+						// When retrying, use a sequential API key rather than random to ensure we try different keys
+						let altApiKeys;
+						if (retryCount > 0 && canRetry()) {
+							// Use sequential key selection during retries
+							altApiKeys = this.getSequentialAltApiKey(Array.isArray(apiKeyArray) ? apiKeyArray : [apiKeyArray]);
+							console.log(`Retry attempt ${retryCount}/${MAX_RETRIES} with API key index ${this.currentKeyIndex-1}`);
+						} else {
+							// First attempt or no keys for retry - use random key
+							altApiKeys = await this.getRandomApiKey(providedAltApiKey);
+						}
+						
+						if (!altApiKeys) {
+							throw new Error("Alternative API key is undefined");
+						}
+						headers = {
+							Accept: this.options.stream ? "text/event-stream" : "application/json",
+							"Content-Type": "application/json",
+							...(xapi ? { "x-api-key": altApiKeys } : { Authorization: `Bearer ${altApiKeys}` }),
+							...additionalHeaders
+						};
+					} else {
+						const oAIKey = this.getOpenAIKey();
+						if (!oAIKey?.key) {
+							throw new Error("OpenAI API key is undefined");
+						}
+						headers = {
+							Accept: this.options.stream ? "text/event-stream" : "application/json",
+							"Content-Type": "application/json",
+							...(xapi ? { "x-api-key": oAIKey.key } : { Authorization: `Bearer ${oAIKey.key}` }),
+							...additionalHeaders
+						};
+					}
+				} catch (error) {
+					throw new Error(`Failed to set up API headers: ${(error as any).message}`);
+				}
+			
+				if (reverse_url) {
+					headers["reverse_url"] = reverse_url;
+				}
+		
+				const requestBody: any = {
+					model: gptModel || this.options.model,
+					messages: promptStr,
+					temperature: this.options.temperature,
+					max_tokens: this.options.max_tokens,
+					top_p: this.options.top_p,
+					frequency_penalty: this.options.frequency_penalty,
+					presence_penalty: this.options.presence_penalty,
+					stream: this.options.stream,
+					...additionalParameters
+				};
+		
+				if (version !== undefined) {
+					requestBody.version = version;
+				}
+		
+				endpointUrl = useAltApi ? providedAltApiEndpoint || this.options.alt_endpoint : this.options.endpoint;
+		
+				// Log outgoing request if debug is enabled
+				if (this.options.debug) {
+					fs.appendFileSync('./api.log', `Outgoing Request:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(headers, null, 2)}\nBody: ${JSON.stringify(requestBody, null, 2)}\n\n`);
+				}
+		
+				const response = await axios.post(
+					endpointUrl,
+					requestBody,
+					{
+						responseType: this.options.stream ? "stream" : "json",
+						headers: headers
+					},
+				);
+
+				// Log incoming response if debug is enabled
+				if (this.options.debug) {
+					fs.appendFileSync('./api.log', `Incoming Response:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(response.headers, null, 2)}\nBody: ${JSON.stringify(response.data, null, 2)}\n\n`);
+				}
+		
+				if (this.options.stream) {
+					responseStr = "";
+					for await (const message of this.streamCompletion(response.data)) {
+						try {
+							const parsed = JSON.parse(message);
+							const { content } = parsed.choices[0].delta;
+							if (content) {
+								responseStr += content;
+								data(content);
+							}
+						} catch (error) {
+							console.error("Could not JSON parse stream message", message, error);
+						}
+					}
+				} else {
+					if (response.data.status === 500 && response.data.error) {
+						throw new Error(response.data.error);
+					} else {
+						// Check for different response structures
+						if (response.data.choices && response.data.choices[0]?.message?.content) {
+							responseStr = response.data.choices[0].message.content;
+						} else if (response.data.responses && response.data.responses[0]?.message?.content) {
+							responseStr = response.data.responses[0].message.content;
+						} else if (response.data.message && Array.isArray(response.data.message.content)) {
+							responseStr = response.data.message.content.map(item => item.text).join(' ');
+						} else {
+							console.error("Unexpected response structure:", response.data);
+							throw new Error("Unexpected response structure");
+						}
 					}
 				}
+		
+				let completion_tokens = encode(responseStr).length;
+		
+				let usageData = {
+					key: oAIKey.key,
+					prompt_tokens: prompt_tokens,
+					completion_tokens: completion_tokens,
+					total_tokens: prompt_tokens + completion_tokens,
+				};
 				
-				fs.appendFileSync('./api.log', `Error message: ${error.message}\n`);
-				fs.appendFileSync('./api.log', `Stack trace: ${error.stack}\n\n`);
-			}
-			if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
-				let errorResponseStr = "";
-				// Assuming error.response.data is a string or a JSON object
-				if (typeof error.response.data === 'string') {
-					errorResponseStr = error.response.data;
-				} else if (typeof error.response.data === 'object') {
-					errorResponseStr = JSON.stringify(error.response.data);
+				// Safely get usage data from response
+				let usageDataResponse;
+				if (response.data.usage) {
+					usageDataResponse = {
+						prompt_tokens: response.data.usage.prompt_tokens || 0,
+						completion_tokens: response.data.usage.completion_tokens || 0,
+						total_tokens: response.data.usage.total_tokens || 0,
+					};
+				} else if (response.data.usage?.tokens) {
+					usageDataResponse = {
+						prompt_tokens: response.data.usage.tokens.input_tokens || 0,
+						completion_tokens: response.data.usage.tokens.output_tokens || 0,
+						total_tokens: (response.data.usage.tokens.input_tokens || 0) + (response.data.usage.tokens.output_tokens || 0),
+					};
+				} else {
+					// Fallback to calculated tokens if no usage data in response
+					usageDataResponse = {
+						prompt_tokens: prompt_tokens,
+						completion_tokens: completion_tokens,
+						total_tokens: prompt_tokens + completion_tokens,
+					};
 				}
-	
-				const errorResponseJson = JSON.parse(errorResponseStr);
-	
-				// Log the entire error response JSON for debugging
-				console.error("Error response JSON:", errorResponseJson);
-	
-				// Log error response if debug is enabled
+				
+				usage(usageData);
+				if (this.onUsage) this.onUsage(usageData);
+		
+				oAIKey.tokens += usageData.total_tokens;
+				oAIKey.balance = (oAIKey.tokens / 1000) * this.options.price;
+				oAIKey.queries++;
+		
+				conversation.messages.push({
+					id: randomUUID(),
+					content: responseStr,
+					type: MessageType.Assistant,
+					date: Date.now(),
+					usage: usageDataResponse
+				});
+
+				return responseStr;
+			} catch (error: any) {
+				// Log all errors if debug is enabled, regardless of structure
 				if (this.options.debug) {
-					fs.appendFileSync('./api.log', `Error Response:\nURL: ${endpointUrl}\nHeaders: ${JSON.stringify(error.response.headers, null, 2)}\nBody: ${JSON.stringify(errorResponseJson, null, 2)}\n\n`);
+					fs.appendFileSync('./api.log', `Error occurred:\n`);
+					
+					if (error.response) {
+						fs.appendFileSync('./api.log', `Status: ${error.response.status}\n`);
+						fs.appendFileSync('./api.log', `Headers: ${JSON.stringify(error.response.headers || {}, null, 2)}\n`);
+						
+						if (error.response.data) {
+							const dataStr = typeof error.response.data === 'object' 
+								? JSON.stringify(error.response.data, null, 2)
+								: String(error.response.data);
+							fs.appendFileSync('./api.log', `Response data: ${dataStr}\n`);
+						}
+					}
+					
+					fs.appendFileSync('./api.log', `Error message: ${error.message}\n`);
+					fs.appendFileSync('./api.log', `Stack trace: ${error.stack}\n\n`);
 				}
-	
-				if (error.response.status === 429 && useAltApi) {
-					this.currentKeyIndex = (this.currentKeyIndex + 1) % this.options.alt_api_key.length;
-					return this.askStream(data, usage, prompt, conversationId, userName, groupName, groupDesc, totalParticipants, imageUrl, loFi, gptModel, maxContextWindowInput, reverse_url, version, personalityPrompt, useAltApi);
+				
+				// Handle service unavailable (503) errors with retry logic
+				if (error.response && error.response.status === 503 && canRetry()) {
+					retryCount++;
+					console.log(`Service unavailable (503) error. Retrying (${retryCount}/${MAX_RETRIES})...`);
+					
+					// Wait a bit before retrying (exponential backoff)
+					const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+					await this.wait(backoffTime);
+					
+					// Try again with a different API key
+					if (useAltApi) {
+						this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeyArray.length;
+					}
+					
+					return executeWithRetry();
 				}
-				throw new Error(errorResponseJson.error.message);
-			} else {
-				throw new Error(error.message);
+				
+				// Handle rate limiting (429) with retry logic
+				if (error.response && error.response.status === 429 && useAltApi && canRetry()) {
+					retryCount++;
+					console.log(`Rate limit (429) exceeded. Retrying with next API key (${retryCount}/${MAX_RETRIES})...`);
+					this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeyArray.length;
+					return executeWithRetry();
+				}
+				
+				// Parse error response
+				if (error.response && error.response.data && error.response.headers["content-type"] === "application/json") {
+					let errorResponseStr = "";
+					// Assuming error.response.data is a string or a JSON object
+					if (typeof error.response.data === 'string') {
+						errorResponseStr = error.response.data;
+					} else if (typeof error.response.data === 'object') {
+						errorResponseStr = JSON.stringify(error.response.data);
+					}
+		
+					const errorResponseJson = JSON.parse(errorResponseStr);
+		
+					// Log the entire error response JSON for debugging
+					console.error("Error response JSON:", errorResponseJson);
+		
+					// Log error response if debug is enabled
+					if (this.options.debug) {
+						fs.appendFileSync('./api.log', `Error Response:\nHeaders: ${JSON.stringify(error.response.headers, null, 2)}\nBody: ${JSON.stringify(errorResponseJson, null, 2)}\n\n`);
+					}
+					
+					throw new Error(errorResponseJson.error?.message || "Unknown API error");
+				} else {
+					throw new Error(error.message || "Unknown error");
+				}
 			}
-		}
+		};
+		
+		// Start the retry process
+		return executeWithRetry();
 	}
 
 	public resetConversation(conversationId: string) {
