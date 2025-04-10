@@ -590,13 +590,60 @@ class ChatGPT {
 						} else if (response.data.message && Array.isArray(response.data.message.content)) {
 							responseStr = response.data.message.content.map(item => item.text).join(' ');
 						} else {
-							console.error("Unexpected response structure:", response.data);
-							throw new Error("Unexpected response structure");
+							// Check for empty response (e.g., missing content in the response structure)
+							if (canRetry() && 
+								(
+									// Case 1: Has choices but no content
+									(response.data.choices && 
+									  (!response.data.choices[0]?.message?.content || 
+									   response.data.choices[0]?.message?.content === '')) ||
+									// Case 2: Has usage but missing content structure
+									(response.data.usage && 
+									 !response.data.choices?.[0]?.message?.content && 
+									 !response.data.responses?.[0]?.message?.content &&
+									 !(response.data.message && Array.isArray(response.data.message.content)))
+								)) {
+								
+								retryCount++;
+								console.log(`Empty or invalid response structure detected. Retrying (${retryCount}/${MAX_RETRIES})...`);
+								console.error("Response structure:", JSON.stringify(response.data));
+								
+								// Wait before retrying (exponential backoff)
+								const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+								await this.wait(backoffTime);
+								
+								// Try with a different API key
+								if (useAltApi) {
+									this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeyArray.length;
+								}
+								
+								return executeWithRetry();
+							} else {
+								console.error("Unexpected response structure:", response.data);
+								throw new Error("Unexpected or empty response structure from API");
+							}
 						}
 					}
 				}
+				
+				// Additional check for empty response content after extraction
+				if (!responseStr && canRetry()) {
+					retryCount++;
+					console.log(`Empty response content. Retrying (${retryCount}/${MAX_RETRIES})...`);
+					
+					// Wait before retrying (exponential backoff)
+					const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+					await this.wait(backoffTime);
+					
+					// Try with a different API key
+					if (useAltApi) {
+						this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeyArray.length;
+					}
+					
+					return executeWithRetry();
+					}
 		
-				let completion_tokens = encode(responseStr).length;
+				let completion_tokens = encode(responseStr || '').length;
 		
 				let usageData = {
 					key: oAIKey.key,
@@ -637,13 +684,13 @@ class ChatGPT {
 		
 				conversation.messages.push({
 					id: randomUUID(),
-					content: responseStr,
+					content: responseStr || "No response content received from API", // Handle null responseStr
 					type: MessageType.Assistant,
 					date: Date.now(),
 					usage: usageDataResponse
 				});
 
-				return responseStr;
+				return responseStr || "No response content received from API";
 			} catch (error: any) {
 				// Log all errors if debug is enabled, regardless of structure
 				if (this.options.debug) {
