@@ -491,7 +491,9 @@ class ChatGPT {
 						let altApiKeys;
 						if (retryCount > 0 && canRetry()) {
 							// Use sequential key selection during retries
-							altApiKeys = this.getSequentialAltApiKey(Array.isArray(apiKeyArray) ? apiKeyArray : [apiKeyArray]);
+							// altApiKeys = this.getSequentialAltApiKey(Array.isArray(apiKeyArray) ? apiKeyArray : [apiKeyArray]);
+							// Use random key selection during retries
+							altApiKeys = await this.getRandomApiKey(providedAltApiKey);
 							console.log(`Retry attempt ${retryCount}/${MAX_RETRIES} with API key index ${this.currentKeyIndex-1}`);
 						} else {
 							// First attempt or no keys for retry - use random key
