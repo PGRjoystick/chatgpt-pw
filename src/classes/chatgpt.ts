@@ -66,15 +66,30 @@ class ChatGPT {
 	}
 	
 	private async convertImageUrlToBase64(imageUrl: string): Promise<string> {
-	  try {
-		const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-		const contentType = response.headers['content-type'] || 'image/jpeg';
-		const base64 = Buffer.from(response.data, 'binary').toString('base64');
-		return `data:${contentType};base64,${base64}`;
-	  } catch (error) {
-		console.error('Error converting image to base64:', error);
-		throw new Error(`Failed to convert image to base64: ${(error as any).message}`);
+	  const MAX_RETRIES = 5;
+	  const RETRY_DELAY = 2000; // 2 seconds
+
+	  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+		try {
+		  const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+		  const contentType = response.headers['content-type'] || 'image/jpeg';
+		  const base64 = Buffer.from(response.data, 'binary').toString('base64');
+		  return `data:${contentType};base64,${base64}`;
+		} catch (error) {
+		  console.error(`Error converting image to base64 (attempt ${attempt}/${MAX_RETRIES}):`, error);
+		  
+		  if (attempt === MAX_RETRIES) {
+			throw new Error(`Failed to convert image to base64 after ${MAX_RETRIES} attempts: ${(error as any).message}`);
+		  }
+		  
+		  console.log(`Retrying in ${RETRY_DELAY/1000} seconds...`);
+		  await this.wait(RETRY_DELAY); // Using the existing wait method
+		}
 	  }
+
+	  // This should never be reached due to the throw in the catch block above,
+	  // but TypeScript requires a return statement
+	  throw new Error(`Failed to convert image to base64 after ${MAX_RETRIES} attempts`);
 	}
 
 	private getOpenAIKey(): OpenAIKey {
