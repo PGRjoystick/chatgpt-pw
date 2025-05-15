@@ -49,7 +49,7 @@ class ChatGPT {
 		this.options = {
 			model: options?.model || "gpt-3.5-turbo", // default model
 			temperature: options?.temperature || 0.7,
-			max_tokens: options?.max_tokens || 100,
+			max_tokens: options?.max_tokens,
 			frequency_penalty: options?.frequency_penalty,
 			presence_penalty: options?.presence_penalty,
 			instructions: options?.instructions || `You are ChatGPT, a language model developed by OpenAI. You are designed to respond to user input in a conversational manner, Answer as concisely as possible. Your training data comes from a diverse range of internet text and You have been trained to generate human-like responses to various questions and prompts. You can provide information on a wide range of topics, but your knowledge is limited to what was present in your training data, which has a cutoff date of 2021. You strive to provide accurate and helpful information to the best of your ability.\nKnowledge cutoff: 2021-09`,
