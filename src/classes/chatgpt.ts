@@ -502,17 +502,11 @@ class ChatGPT {
 				
 				try {
 					if (useAltApi && this.options.alt_endpoint) {
-						// When retrying, use a sequential API key rather than random to ensure we try different keys
-						let altApiKeys;
-						if (retryCount > 0 && canRetry()) {
-							// Use sequential key selection during retries
-							// altApiKeys = this.getSequentialAltApiKey(Array.isArray(apiKeyArray) ? apiKeyArray : [apiKeyArray]);
-							// Use random key selection during retries
-							altApiKeys = await this.getRandomApiKey(providedAltApiKey);
-							console.log(`Retry attempt ${retryCount}/${MAX_RETRIES} with API key index ${this.currentKeyIndex-1}`);
-						} else {
-							// First attempt or no keys for retry - use random key
-							altApiKeys = await this.getRandomApiKey(providedAltApiKey);
+						// Always use random key selection for all attempts (including retries)
+						const altApiKeys = this.getRandomApiKey(providedAltApiKey);
+						
+						if (retryCount > 0) {
+							console.log(`Retry attempt ${retryCount}/${MAX_RETRIES} with randomly selected API key`);
 						}
 						
 						if (!altApiKeys) {
@@ -622,17 +616,12 @@ class ChatGPT {
 								)) {
 								
 								retryCount++;
-								console.log(`Empty or invalid response structure detected. Retrying (${retryCount}/${MAX_RETRIES})...`);
+								console.log(`Empty or invalid response structure detected. Retrying with random API key (${retryCount}/${MAX_RETRIES})...`);
 								console.error("Response structure:", JSON.stringify(response.data));
 								
 								// Wait before retrying (exponential backoff)
 								const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
 								await this.wait(backoffTime);
-								
-								// Try with a different API key
-								if (useAltApi) {
-									this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeyArray.length;
-								}
 								
 								return executeWithRetry();
 							} else {
@@ -646,19 +635,14 @@ class ChatGPT {
 				// Additional check for empty response content after extraction
 				if (!responseStr && canRetry()) {
 					retryCount++;
-					console.log(`Empty response content. Retrying (${retryCount}/${MAX_RETRIES})...`);
+					console.log(`Empty response content. Retrying with random API key (${retryCount}/${MAX_RETRIES})...`);
 					
 					// Wait before retrying (exponential backoff)
 					const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
 					await this.wait(backoffTime);
 					
-					// Try with a different API key
-					if (useAltApi) {
-						this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeyArray.length;
-					}
-					
 					return executeWithRetry();
-					}
+				}
 		
 				let completion_tokens = encode(responseStr || '').length;
 		
@@ -732,16 +716,11 @@ class ChatGPT {
 				// Handle service unavailable (503) errors with retry logic
 				if (error.response && error.response.status === 503 && canRetry()) {
 					retryCount++;
-					console.log(`Service unavailable (503) error. Retrying (${retryCount}/${MAX_RETRIES})...`);
+					console.log(`Service unavailable (503) error. Retrying with random API key (${retryCount}/${MAX_RETRIES})...`);
 					
 					// Wait a bit before retrying (exponential backoff)
 					const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
 					await this.wait(backoffTime);
-					
-					// Try again with a different API key
-					if (useAltApi) {
-						this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeyArray.length;
-					}
 					
 					return executeWithRetry();
 				}
@@ -749,8 +728,7 @@ class ChatGPT {
 				// Handle rate limiting (429) with retry logic
 				if (error.response && error.response.status === 429 && useAltApi && canRetry()) {
 					retryCount++;
-					console.log(`Rate limit (429) exceeded. Retrying with next API key (${retryCount}/${MAX_RETRIES})...`);
-					this.currentKeyIndex = (this.currentKeyIndex + 1) % apiKeyArray.length;
+					console.log(`Rate limit (429) exceeded. Retrying with random API key (${retryCount}/${MAX_RETRIES})...`);
 					return executeWithRetry();
 				}
 				
