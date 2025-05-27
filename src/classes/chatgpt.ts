@@ -466,6 +466,16 @@ class ChatGPT {
 		return undefined;
 	}
 
+	private getRandomApiKeyWithLogging(keys?: string[]): { key: string | undefined, index: number } {
+		const apiKeys = keys && keys.length > 0 ? keys : this.options.alt_api_key;
+		if (apiKeys && apiKeys.length > 0) {
+			// Select a random index
+			const randomIndex = Math.floor(Math.random() * apiKeys.length);
+			return { key: apiKeys[randomIndex], index: randomIndex };
+		}
+		return { key: undefined, index: -1 };
+	}
+	
 	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean) {
 		const MAX_RETRIES = 5;
 		let retryCount = 0;
@@ -503,10 +513,12 @@ class ChatGPT {
 				try {
 					if (useAltApi && this.options.alt_endpoint) {
 						// Always use random key selection for all attempts (including retries)
-						const altApiKeys = this.getRandomApiKey(providedAltApiKey);
+						const { key: altApiKeys, index: keyIndex } = this.getRandomApiKeyWithLogging(providedAltApiKey);
 						
-						if (retryCount > 0) {
-							console.log(`Retry attempt ${retryCount}/${MAX_RETRIES} with randomly selected API key`);
+						if (retryCount === 0) {
+							console.log(`[API Key Selection] Initial attempt using API key at index ${keyIndex} (Total available: ${apiKeyArray?.length || 0})`);
+						} else {
+							console.log(`[API Key Selection] Retry attempt ${retryCount}/${MAX_RETRIES} using API key at index ${keyIndex} (Total available: ${apiKeyArray?.length || 0})`);
 						}
 						
 						if (!altApiKeys) {
@@ -523,6 +535,7 @@ class ChatGPT {
 						if (!oAIKey?.key) {
 							throw new Error("OpenAI API key is undefined");
 						}
+						console.log(`[API Key Selection] Using OpenAI primary key (not using alt_api_key array)`);
 						headers = {
 							Accept: this.options.stream ? "text/event-stream" : "application/json",
 							"Content-Type": "application/json",
