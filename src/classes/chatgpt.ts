@@ -609,10 +609,19 @@ class ChatGPT {
 						// Check for different response structures
 						if (response.data.choices && response.data.choices[0]?.message?.content) {
 							responseStr = response.data.choices[0].message.content;
+							// Extract and append Google Gemini sources if available
+							const geminiSources = this.extractGeminiSources(response.data);
+							responseStr += geminiSources;
 						} else if (response.data.responses && response.data.responses[0]?.message?.content) {
 							responseStr = response.data.responses[0].message.content;
+							// Extract and append Google Gemini sources if available
+							const geminiSources = this.extractGeminiSources(response.data);
+							responseStr += geminiSources;
 						} else if (response.data.message && Array.isArray(response.data.message.content)) {
 							responseStr = response.data.message.content.map(item => item.text).join(' ');
+							// Extract and append Google Gemini sources if available
+							const geminiSources = this.extractGeminiSources(response.data);
+							responseStr += geminiSources;
 						} else {
 							// Check for empty response (e.g., missing content in the response structure)
 							if (canRetry() && 
@@ -912,6 +921,28 @@ class ChatGPT {
 
 	private wait(ms: number) {
 		return new Promise((resolve) => setTimeout(resolve, ms));
+	}
+
+	private extractGeminiSources(responseData: any): string {
+		let sourcesText = "";
+		
+		// Check if response has Google Gemini grounding metadata
+		if (responseData?.choices?.[0]?.google_gemini_body?.groundingMetadata?.groundingChunks) {
+			const groundingChunks = responseData.choices[0].google_gemini_body.groundingMetadata.groundingChunks;
+			
+			if (Array.isArray(groundingChunks) && groundingChunks.length > 0) {
+				const sources = groundingChunks
+					.filter(chunk => chunk.web?.resolved_uri)
+					.map((chunk, index) => `${index + 1}. ${chunk.web.resolved_uri}`)
+					.join('\n');
+				
+				if (sources) {
+					sourcesText = `\n\nSource:\n${sources}`;
+				}
+			}
+		}
+		
+		return sourcesText;
 	}
 }
 
