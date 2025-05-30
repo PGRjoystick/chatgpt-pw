@@ -276,13 +276,24 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public addAssistantMessages(conversationId: string, prompt: string, imageUrl?: string) {
+	public addAssistantMessages(conversationId: string, prompt: string, imageUrl?: string, fileUrl?: string) {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		let content;
-		if (imageUrl) {
+		if (imageUrl && fileUrl) {
+			content = [
+				{ type: 'text', text: prompt },
+				{ type: 'image_url', image_url: { url: imageUrl } },
+				{ type: 'file_url', file_url: { url: fileUrl } }
+			];
+		} else if (imageUrl) {
 			content = [
 				{ type: 'text', text: prompt },
 				{ type: 'image_url', image_url: { url: imageUrl } }
+			];
+		} else if (fileUrl) {
+			content = [
+				{ type: 'text', text: prompt },
+				{ type: 'file_url', file_url: { url: fileUrl } }
 			];
 		} else {
 			content = prompt;
@@ -299,7 +310,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean) {
+	public async ask(gptModel?: string, prompt?: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean, fileUrl?: string) {
 	  return await this.askStream(
 		(data) => { },
 		(data) => { },
@@ -324,7 +335,8 @@ class ChatGPT {
 		systemPromptUnsupported,
 		additionalParameters,
 		additionalHeaders,
-		imgUrlUnsupported
+		imgUrlUnsupported,
+		fileUrl
 	  );
 	}
 
@@ -351,9 +363,26 @@ class ChatGPT {
 		return undefined;
 	}
 	
-	private async generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, personalityPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean, isAyana?: boolean, imgUrlUnsupported?: boolean): Promise<Message[]> {
+	private async generatePrompt(conversation: Conversation, prompt?: string, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, maxContextWindowInput?: number, personalityPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean, isAyana?: boolean, imgUrlUnsupported?: boolean, fileUrl?: string): Promise<Message[]> {
 	  let content;
-	  if (imageUrl) {
+	  if (imageUrl && fileUrl) {
+		// Convert image URL to base64 if needed
+		const imageUrlToUse = imgUrlUnsupported ? await this.convertImageUrlToBase64(imageUrl) : imageUrl;
+		
+		if (loFi) {
+		  content = [
+			{ type: 'text', text: prompt },
+			{ type: 'image_url', image_url: { url: imageUrlToUse, detail: 'low' } },
+			{ type: 'file_url', file_url: { url: fileUrl } }
+		  ];
+		} else {
+		  content = [
+			{ type: 'text', text: prompt },
+			{ type: 'image_url', image_url: { url: imageUrlToUse } },
+			{ type: 'file_url', file_url: { url: fileUrl } }
+		  ];
+		}
+	  } else if (imageUrl) {
 		// Convert image URL to base64 if needed
 		const imageUrlToUse = imgUrlUnsupported ? await this.convertImageUrlToBase64(imageUrl) : imageUrl;
 		
@@ -368,6 +397,11 @@ class ChatGPT {
 			{ type: 'image_url', image_url: { url: imageUrlToUse } }
 		  ];
 		}
+	  } else if (fileUrl) {
+		content = [
+		  { type: 'text', text: prompt },
+		  { type: 'file_url', file_url: { url: fileUrl } }
+		];
 	  } else {
 		content = prompt;
 	  }
@@ -381,7 +415,7 @@ class ChatGPT {
 		});
 	  }
 	
-	  let messages = await this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported);
+	  let messages = await this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported, fileUrl);
 	  let promptEncodedLength = this.countTokens(messages);
 	  let totalLength = promptEncodedLength + this.options.max_tokens;
 	
@@ -389,7 +423,7 @@ class ChatGPT {
 	
 	  while (totalLength > maxContextWindow) {
 		this.archiveOldestMessage(conversation, this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, personalityPrompt, useAltApi, isAyana), false);
-		messages = await this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported);
+		messages = await this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported, fileUrl);
 		promptEncodedLength = this.countTokens(messages);
 		totalLength = promptEncodedLength + this.options.max_tokens;
 	  }
@@ -398,7 +432,7 @@ class ChatGPT {
 	  return messages;
 	}
 	
-	private async generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, personalityPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean, isAyana?: boolean, imgUrlUnsupported?: boolean): Promise<Message[]> {
+	private async generateMessages(conversation: Conversation, groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, personalityPrompt?: string, useAltApi?: boolean, systemPromptUnsupported?: boolean, isAyana?: boolean, imgUrlUnsupported?: boolean, fileUrl?: string): Promise<Message[]> {
 	  let messages: Message[] = [];
 	  const systemPrompt = this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, personalityPrompt, useAltApi, isAyana);
 	
@@ -443,6 +477,8 @@ class ChatGPT {
 			  } else {
 				return { type: 'image_url', image_url: { url: imageUrlToUse } };
 			  }
+			} else if (item.type === 'file_url') {
+			  return { type: 'file_url', file_url: { url: item.file_url.url } };
 			}
 		  }));
 		} else {
@@ -476,7 +512,7 @@ class ChatGPT {
 		return { key: undefined, index: -1 };
 	}
 	
-	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean) {
+	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean, fileUrl?: string) {
 		const MAX_RETRIES = 5;
 		let retryCount = 0;
 		let apiKeyArray = providedAltApiKey || this.options.alt_api_key;
@@ -506,7 +542,7 @@ class ChatGPT {
 				}
 
 				let responseStr;
-				let promptStr = await this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported);
+				let promptStr = await this.generatePrompt(conversation, prompt, groupName, groupDesc, totalParticipants, imageUrl, loFi, maxContextWindowInput, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported, fileUrl);
 				let prompt_tokens = this.countTokens(promptStr);
 				let endpointUrl, headers;
 				
