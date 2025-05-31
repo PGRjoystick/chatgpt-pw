@@ -170,7 +170,7 @@ class ChatGPT {
 		return conversation;
 	}
 
-	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string, lastType: number, isLastMessagevision: boolean, prompt_tokens?: number, completion_tokens?: number, total_tokens?: number } | null {
+	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string, lastType: number, isLastMessagevision: boolean, isLastMessageFile: boolean, prompt_tokens?: number, completion_tokens?: number, total_tokens?: number } | null {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let firstMessage = this.formatMessageContent(conversation.messages[0].content);
@@ -178,9 +178,11 @@ class ChatGPT {
 			let lastType = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].type);
 			
 			let isLastMessagevision = false;
+			let isLastMessageFile = false;
 			const lastMessageContent = conversation.messages[conversation.messages.length - 1].content;
 			if (Array.isArray(lastMessageContent)) {
 				isLastMessagevision = lastMessageContent.some(part => part.type === 'image_url');
+				isLastMessageFile = lastMessageContent.some(part => part.type === 'file_url');
 			}
 	
 			const usage: UsageStats = conversation.messages[conversation.messages.length - 1].usage as UsageStats;
@@ -188,7 +190,7 @@ class ChatGPT {
 			const completion_tokens = usage?.completion_tokens;
 			const total_tokens = usage?.total_tokens;
 	
-			return { firstMessage, lastMessage, lastType, isLastMessagevision, prompt_tokens, completion_tokens, total_tokens };
+			return { firstMessage, lastMessage, lastType, isLastMessagevision, isLastMessageFile, prompt_tokens, completion_tokens, total_tokens };
 		} else {
 			console.log("There are no messages in the conversation.");
 			return null;
@@ -199,7 +201,8 @@ class ChatGPT {
 		if (Array.isArray(content)) {
 			let textPart = content.find(part => part.type === 'text')?.text || '';
 			let imageUrlPart = content.find(part => part.type === 'image_url')?.image_url?.url || '';
-			return `${textPart}\n${imageUrlPart}`;
+			let fileUrlPart = content.find(part => part.type === 'file_url')?.file_url?.url || '';
+			return `${textPart}${imageUrlPart ? '\n' + imageUrlPart : ''}${fileUrlPart ? '\n' + fileUrlPart : ''}`;
 		} else {
 			return content;
 		}
@@ -227,6 +230,26 @@ class ChatGPT {
 		}
 	}
 
+	public countChatsWithFile(conversationId: string): number {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+			let fileCount = 0;
+			for (let message of conversation.messages) {
+				const messageContent = message.content;
+				if (Array.isArray(messageContent)) {
+					const hasFileUrl = messageContent.some(part => part.type === 'file_url');
+					if (hasFileUrl) {
+						fileCount++;
+					}
+				}
+			}
+			return fileCount;
+		} else {
+			console.log("There are no messages in the conversation.");
+			return 0;
+		}
+	}
+
 	// Deletes the most recent message containing vision content (image_url) in the conversation
 	public deleteLastVisionMessage(conversationId: string) {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
@@ -247,6 +270,33 @@ class ChatGPT {
 			}
 		  }
 		  console.log("No vision messages found in the conversation.");
+		} else {
+		  console.log("There are no messages in the conversation.");
+		}
+		
+		return conversation;
+	  }
+
+	// Deletes the most recent message containing file content (file_url) in the conversation
+	public deleteLastFileMessage(conversationId: string) {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+		  // Search from most recent message backward
+		  for (let i = conversation.messages.length - 1; i >= 0; i--) {
+			const message = conversation.messages[i];
+			const content = message.content;
+			
+			// Check if this is a file message (content is an array with a file_url element)
+			if (Array.isArray(content) && content.some(part => part.type === 'file_url')) {
+			  // Remove this message
+			  conversation.messages.splice(i, 1);
+			  conversation.lastActive = Date.now();
+			  console.log(`File message at index ${i} removed from conversation ${conversationId}`);
+			  return conversation;
+			}
+		  }
+		  console.log("No file messages found in the conversation.");
 		} else {
 		  console.log("There are no messages in the conversation.");
 		}
