@@ -250,33 +250,6 @@ class ChatGPT {
 		}
 	}
 
-	// Deletes the most recent message containing vision content (image_url) in the conversation
-	public deleteLastVisionMessage(conversationId: string) {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
-		
-		if (conversation && conversation.messages && conversation.messages.length >= 1) {
-		  // Search from most recent message backward
-		  for (let i = conversation.messages.length - 1; i >= 0; i--) {
-			const message = conversation.messages[i];
-			const content = message.content;
-			
-			// Check if this is a vision message (content is an array with an image_url element)
-			if (Array.isArray(content) && content.some(part => part.type === 'image_url')) {
-			  // Remove this message
-			  conversation.messages.splice(i, 1);
-			  conversation.lastActive = Date.now();
-			  console.log(`Vision message at index ${i} removed from conversation ${conversationId}`);
-			  return conversation;
-			}
-		  }
-		  console.log("No vision messages found in the conversation.");
-		} else {
-		  console.log("There are no messages in the conversation.");
-		}
-		
-		return conversation;
-	  }
-
 	// Deletes the most recent message containing file content (file_url) in the conversation
 	public deleteLastFileMessage(conversationId: string) {
 		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
@@ -297,6 +270,33 @@ class ChatGPT {
 			}
 		  }
 		  console.log("No file messages found in the conversation.");
+		} else {
+		  console.log("There are no messages in the conversation.");
+		}
+		
+		return conversation;
+	}
+
+	// Deletes the most recent message containing vision content (image_url) in the conversation
+	public deleteLastVisionMessage(conversationId: string) {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+		  // Search from most recent message backward
+		  for (let i = conversation.messages.length - 1; i >= 0; i--) {
+			const message = conversation.messages[i];
+			const content = message.content;
+			
+			// Check if this is a vision message (content is an array with an image_url element)
+			if (Array.isArray(content) && content.some(part => part.type === 'image_url')) {
+			  // Remove this message
+			  conversation.messages.splice(i, 1);
+			  conversation.lastActive = Date.now();
+			  console.log(`Vision message at index ${i} removed from conversation ${conversationId}`);
+			  return conversation;
+			}
+		  }
+		  console.log("No vision messages found in the conversation.");
 		} else {
 		  console.log("There are no messages in the conversation.");
 		}
@@ -1030,6 +1030,76 @@ class ChatGPT {
 		
 		return sourcesText;
 	}
+
+	// Helper function to check if a URL is a YouTube URL
+	private isYouTubeUrl(url: string): boolean {
+		const youtubePatterns = [
+			/^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/i,
+			/^(https?:\/\/)?(m\.)?youtube\.com\/.+/i,
+			/^(https?:\/\/)?youtu\.be\/.+/i
+		];
+		return youtubePatterns.some(pattern => pattern.test(url));
+	}
+
+	public countChatsWithYouTubeFile(conversationId: string): number {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+			let youtubeFileCount = 0;
+			for (let message of conversation.messages) {
+				const messageContent = message.content;
+				if (Array.isArray(messageContent)) {
+					const hasYouTubeFileUrl = messageContent.some(part => 
+						part.type === 'file_url' && 
+						part.file_url?.url && 
+						this.isYouTubeUrl(part.file_url.url)
+					);
+					if (hasYouTubeFileUrl) {
+						youtubeFileCount++;
+					}
+				}
+			}
+			return youtubeFileCount;
+		} else {
+			console.log("There are no messages in the conversation.");
+			return 0;
+		}
+	}
+
+	// Deletes the most recent message containing file content (file_url) with YouTube URL in the conversation
+	public deleteLastYouTubeFileMessage(conversationId: string) {
+		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+		
+		if (conversation && conversation.messages && conversation.messages.length >= 1) {
+		  // Search from most recent message backward
+		  for (let i = conversation.messages.length - 1; i >= 0; i--) {
+			const message = conversation.messages[i];
+			const content = message.content;
+			
+			// Check if this is a file message with YouTube URL (content is an array with a file_url element containing YouTube URL)
+			if (Array.isArray(content)) {
+			  const hasYouTubeFileUrl = content.some(part => 
+				part.type === 'file_url' && 
+				part.file_url?.url && 
+				this.isYouTubeUrl(part.file_url.url)
+			  );
+			  
+			  if (hasYouTubeFileUrl) {
+				// Remove this message
+				conversation.messages.splice(i, 1);
+				conversation.lastActive = Date.now();
+				console.log(`YouTube file message at index ${i} removed from conversation ${conversationId}`);
+				return conversation;
+			  }
+			}
+		  }
+		  console.log("No YouTube file messages found in the conversation.");
+		} else {
+		  console.log("There are no messages in the conversation.");
+		}
+		
+		return conversation;
+	}
+
 }
 
 export default ChatGPT;
