@@ -821,12 +821,36 @@ class ChatGPT {
 					fs.appendFileSync('./api.log', `Stack trace: ${error.stack}\n\n`);
 				}
 				
+				// Handle internal server error (500) with retry logic
+				if (error.response && error.response.status === 500 && canRetry()) {
+					retryCount++;
+					console.log(`Internal server error (500). Retrying with random API key (${retryCount}/${MAX_RETRIES})...`);
+					
+					// Wait before retrying (exponential backoff)
+					const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+					await this.wait(backoffTime);
+					
+					return executeWithRetry();
+				}
+				
 				// Handle service unavailable (503) errors with retry logic
 				if (error.response && error.response.status === 503 && canRetry()) {
 					retryCount++;
 					console.log(`Service unavailable (503) error. Retrying with random API key (${retryCount}/${MAX_RETRIES})...`);
 					
 					// Wait a bit before retrying (exponential backoff)
+					const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
+					await this.wait(backoffTime);
+					
+					return executeWithRetry();
+				}
+				
+				// Handle internal server error (500) with retry logic
+				if (error.response && error.response.status === 500 && canRetry()) {
+					retryCount++;
+					console.log(`Internal server error (500) encountered. Retrying with random API key (${retryCount}/${MAX_RETRIES})...`);
+					
+					// Wait before retrying (exponential backoff)
 					const backoffTime = Math.min(1000 * Math.pow(2, retryCount - 1), 10000);
 					await this.wait(backoffTime);
 					
