@@ -467,7 +467,8 @@ class ChatGPT {
 	
 	  let messages = await this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported, fileUrl);
 	  let promptEncodedLength = this.countTokens(messages);
-	  let totalLength = promptEncodedLength + this.options.max_tokens;
+	  let totalLength
+	  this.options.max_tokens ? totalLength = promptEncodedLength + this.options.max_tokens : totalLength = promptEncodedLength // if max_tokens is not set, we assume the total length is just the prompt length
 	
 	  const maxContextWindow = maxContextWindowInput || this.options.max_conversation_tokens;
 	
@@ -475,7 +476,7 @@ class ChatGPT {
 		this.archiveOldestMessage(conversation, this.getInstructions(conversation.userName, groupName, groupDesc, totalParticipants, personalityPrompt, useAltApi, isAyana), false);
 		messages = await this.generateMessages(conversation, groupName, groupDesc, totalParticipants, imageUrl, loFi, personalityPrompt, useAltApi, systemPromptUnsupported, isAyana, imgUrlUnsupported, fileUrl);
 		promptEncodedLength = this.countTokens(messages);
-		totalLength = promptEncodedLength + this.options.max_tokens;
+		this.options.max_tokens ? totalLength = promptEncodedLength + this.options.max_tokens : totalLength = promptEncodedLength; // if max_tokens is not set, we assume the total length is just the prompt length
 	  }
 	
 	  conversation.lastActive = Date.now();
