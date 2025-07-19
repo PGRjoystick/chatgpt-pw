@@ -583,10 +583,8 @@ class ChatGPT {
 			const availableKeys = apiKeys.filter(key => !blacklisted.includes(key));
 			
 			if (availableKeys.length === 0) {
-				console.warn('[API Key Selection] All keys are blacklisted! Using original keys array.');
-				// Fall back to original array if all keys are blacklisted
-				const randomIndex = Math.floor(Math.random() * apiKeys.length);
-				return { key: apiKeys[randomIndex], index: randomIndex };
+				console.error('[API Key Selection] All API keys are blacklisted!');
+				throw new Error('All provided API keys have been blacklisted due to rate limiting. No available keys for API requests.');
 			}
 			
 			// Select a random index from available (non-blacklisted) keys
