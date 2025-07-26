@@ -2,11 +2,12 @@ import axios from "axios";
 import { randomUUID } from "crypto";
 import { encode } from "gpt-3-encoder";
 import Usage from "../models/chatgpt-usage.js";
-import Options from "../models/chatgpt-options.js";
+import ChatGPTOptions from "../models/chatgpt-options.js";
 import Conversation from "../models/conversation.js";
 import Message from "../models/chatgpt-message.js";
 import MessageType from "../enums/message-type.js";
 import AppDbContext from "./app-dbcontext.js";
+import UnifiedDbContext from "./unified-dbcontext.js";
 import OpenAIKey from "../models/openai-key.js";
 import { Configuration, OpenAIApi } from "openai";
 import { UsageStats } from "src/models/message.js";
@@ -18,34 +19,64 @@ const startsWithIgnoreCase = (str, prefix) => str.toLowerCase().startsWith(prefi
 
 
 class ChatGPT {
-	public options: Options;
-	private db: AppDbContext;
+	public options: ChatGPTOptions;
+	private db: UnifiedDbContext;
 	private currentKeyIndex: number = 0;
 	public onUsage: (usage: Usage) => void;
 
-	constructor(key: string | string[], options?: Options) {
-		this.db = new AppDbContext();
-		this.db.WaitForLoad().then(() => {
+	constructor(key: string | string[], options?: ChatGPTOptions) {
+		// Initialize database context based on options
+		const useRedis = options?.useRedis || false;
+		this.db = new UnifiedDbContext(useRedis, options?.redis);
+		
+		this.db.WaitForLoad().then(async () => {
 			if (typeof key === "string") {
-				if (this.db.keys.Any((x) => x.key === key)) return;
-				this.db.keys.Add({
+				if (useRedis) {
+					const existing = await this.db.getApiKeyAsync(key);
+					if (existing) return;
+				} else {
+					if (this.db.keys.Any((x) => x.key === key)) return;
+				}
+				
+				const newKey = {
 					key: key,
 					queries: 0,
 					balance: 0,
 					tokens: 0,
-				});
+				};
+				
+				if (useRedis) {
+					await this.db.setApiKeyAsync(newKey);
+				} else {
+					this.db.keys.Add(newKey);
+				}
 			} else if (Array.isArray(key)) {
-				key.forEach((k) => {
-					if (this.db.keys.Any((x) => x.key === k)) return;
-					this.db.keys.Add({
+				for (const k of key) {
+					if (useRedis) {
+						const existing = await this.db.getApiKeyAsync(k);
+						if (existing) continue;
+					} else {
+						if (this.db.keys.Any((x) => x.key === k)) continue;
+					}
+					
+					const newKey = {
 						key: k,
 						queries: 0,
 						balance: 0,
 						tokens: 0,
-					});
-				});
+					};
+					
+					if (useRedis) {
+						await this.db.setApiKeyAsync(newKey);
+					} else {
+						this.db.keys.Add(newKey);
+					}
+				}
 			}
+		}).catch(error => {
+			console.error("Error initializing database:", error);
 		});
+		
 		this.options = {
 			model: options?.model || "gpt-3.5-turbo", // default model
 			temperature: options?.temperature || 0.7,
@@ -92,11 +123,21 @@ class ChatGPT {
 	  throw new Error(`Failed to convert image to base64 after ${MAX_RETRIES} attempts`);
 	}
 
-	private getOpenAIKey(): OpenAIKey {
-		let key = this.db.keys.OrderBy((x) => x.balance).FirstOrDefault();
-
-		if (key == null) {
-			key = this.db.keys.FirstOrDefault();
+	private async getOpenAIKey(): Promise<OpenAIKey> {
+		let key: OpenAIKey | null = null;
+		
+		if (this.db.isRedis()) {
+			// For Redis, use async methods
+			key = await this.db.getOrderedApiKeyAsync((x) => x.balance);
+			if (key == null) {
+				key = await this.db.getFirstApiKeyAsync();
+			}
+		} else {
+			// For JSON file storage, use legacy sync methods
+			key = this.db.keys.OrderBy((x) => x.balance).FirstOrDefault();
+			if (key == null) {
+				key = this.db.keys.FirstOrDefault();
+			}
 		}
 
 		if (key == null) {
@@ -162,19 +203,45 @@ class ChatGPT {
 		}
 	}
 
-	public addConversation(conversationId: string, userName: string = "User") {
+	public addConversation(conversationId: string, userName: string = "User"): Conversation {
 		let conversation: Conversation = {
 			id: conversationId,
 			userName: userName,
 			messages: [],
 		};
-		this.db.conversations.Add(conversation);
+		
+		if (this.db.isRedis()) {
+			// Fire and forget for Redis (will be saved when conversation is updated)
+			this.db.setConversationAsync(conversation).catch(err => 
+				console.error("Error adding conversation to Redis:", err)
+			);
+		} else {
+			this.db.conversations.Add(conversation);
+		}
 
 		return conversation;
 	}
 
-	public getFirstAndLastMessage(conversationId: string): { firstMessage: string, lastMessage: string, lastType: number, isLastMessagevision: boolean, isLastMessageFile: boolean, prompt_tokens?: number, completion_tokens?: number, total_tokens?: number } | null {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	// Helper method to get conversation for both Redis and JSON storage
+	private async getConversationById(conversationId: string): Promise<Conversation | null> {
+		if (this.db.isRedis()) {
+			return await this.db.getConversationAsync(conversationId);
+		} else {
+			return this.db.conversations.Where((c) => c.id === conversationId).FirstOrDefault();
+		}
+	}
+
+	// Helper method to save conversation for both Redis and JSON storage
+	private async saveConversation(conversation: Conversation): Promise<void> {
+		if (this.db.isRedis()) {
+			await this.db.setConversationAsync(conversation);
+		}
+		// For JSON storage, the conversation is already updated by reference
+	}
+
+	public async getFirstAndLastMessage(conversationId: string): Promise<{ firstMessage: string, lastMessage: string, lastType: number, isLastMessagevision: boolean, isLastMessageFile: boolean, prompt_tokens?: number, completion_tokens?: number, total_tokens?: number } | null> {
+		let conversation = await this.getConversationById(conversationId);
+		
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let firstMessage = this.formatMessageContent(conversation.messages[0].content);
 			let lastMessage = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].content);
@@ -211,8 +278,8 @@ class ChatGPT {
 		}
 	}
 
-	public countChatsWithVision(conversationId: string): number {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async countChatsWithVision(conversationId: string): Promise<number> {
+		let conversation = await this.getConversationById(conversationId);
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let visionCount = 0;
 			for (let message of conversation.messages) {
@@ -233,8 +300,8 @@ class ChatGPT {
 		}
 	}
 
-	public countChatsWithFile(conversationId: string): number {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async countChatsWithFile(conversationId: string): Promise<number> {
+		let conversation = await this.getConversationById(conversationId);
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let fileCount = 0;
 			for (let message of conversation.messages) {
@@ -254,8 +321,8 @@ class ChatGPT {
 	}
 
 	// Deletes the most recent message containing file content (file_url) in the conversation
-	public deleteLastFileMessage(conversationId: string) {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async deleteLastFileMessage(conversationId: string): Promise<Conversation | null> {
+		let conversation = await this.getConversationById(conversationId);
 		
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 		  // Search from most recent message backward
@@ -269,6 +336,9 @@ class ChatGPT {
 			  conversation.messages.splice(i, 1);
 			  conversation.lastActive = Date.now();
 			  console.log(`File message at index ${i} removed from conversation ${conversationId}`);
+			  
+			  // Save the updated conversation
+			  await this.saveConversation(conversation);
 			  return conversation;
 			}
 		  }
@@ -281,8 +351,8 @@ class ChatGPT {
 	}
 
 	// Deletes the most recent message containing vision content (image_url) in the conversation
-	public deleteLastVisionMessage(conversationId: string) {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async deleteLastVisionMessage(conversationId: string): Promise<Conversation | null> {
+		let conversation = await this.getConversationById(conversationId);
 		
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 		  // Search from most recent message backward
@@ -296,6 +366,9 @@ class ChatGPT {
 			  conversation.messages.splice(i, 1);
 			  conversation.lastActive = Date.now();
 			  console.log(`Vision message at index ${i} removed from conversation ${conversationId}`);
+			  
+			  // Save the updated conversation
+			  await this.saveConversation(conversation);
 			  return conversation;
 			}
 		  }
@@ -307,30 +380,34 @@ class ChatGPT {
 		return conversation;
 	  }
 
-	public deleteLastTwoMessages(conversationId: string) {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async deleteLastTwoMessages(conversationId: string): Promise<Conversation | null> {
+		let conversation = await this.getConversationById(conversationId);
 		if (conversation && conversation.messages && conversation.messages.length >= 2) {
 			conversation.messages.splice(-2, 2);
 			conversation.lastActive = Date.now();
+			// Save the updated conversation
+			await this.saveConversation(conversation);
 		} else {
 			console.log("There are less than two messages in the conversation.");
 		}
 		return conversation;
 	}
 
-	public deleteLastMessage(conversationId: string) {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async deleteLastMessage(conversationId: string): Promise<Conversation | null> {
+		let conversation = await this.getConversationById(conversationId);
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			conversation.messages.splice(-1, 1);
 			conversation.lastActive = Date.now();
+			// Save the updated conversation
+			await this.saveConversation(conversation);
 		} else {
 			console.log("There are no messages in the conversation.");
 		}
 		return conversation;
 	}
 
-	public addAssistantMessages(conversationId: string, prompt: string, imageUrl?: string, fileUrl?: string) {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async addAssistantMessages(conversationId: string, prompt: string, imageUrl?: string, fileUrl?: string): Promise<Conversation | null> {
+		let conversation = await this.getConversationById(conversationId);
 		let content;
 		if (imageUrl && fileUrl) {
 			content = [
@@ -359,6 +436,8 @@ class ChatGPT {
 				date: Date.now(),
 			});
 			conversation.lastActive = Date.now();
+			// Save the updated conversation
+			await this.saveConversation(conversation);
 		}
 		return conversation;
 	}
@@ -394,12 +473,23 @@ class ChatGPT {
 	  );
 	}
 
-	public getConversation(conversationId: string, userName: string = "User") {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async getConversation(conversationId: string, userName: string = "User"): Promise<Conversation> {
+		let conversation: Conversation | null = null;
+		
+		if (this.db.isRedis()) {
+			conversation = await this.db.getConversationAsync(conversationId);
+		} else {
+			conversation = this.db.conversations.Where((c) => c.id === conversationId).FirstOrDefault();
+		}
+		
 		if (!conversation) {
 			conversation = this.addConversation(conversationId, userName);
 		} else {
 			conversation.lastActive = Date.now();
+			// Save the updated lastActive time
+			if (this.db.isRedis()) {
+				await this.db.setConversationAsync(conversation);
+			}
 		}
 
 		conversation.userName = userName;
@@ -614,8 +704,8 @@ class ChatGPT {
 			let currentApiKey: string | undefined; // Track the current API key being used
 			
 			try {
-				let oAIKey = this.getOpenAIKey();
-				let conversation = this.getConversation(conversationId, userName);
+				let oAIKey = await this.getOpenAIKey();
+				let conversation = await this.getConversation(conversationId, userName);
 			
 				if (this.options.moderation) {
 					let flagged = await this.moderate(prompt, oAIKey.key);
@@ -655,7 +745,7 @@ class ChatGPT {
 							...additionalHeaders
 						};
 					} else {
-						const oAIKey = this.getOpenAIKey();
+						const oAIKey = await this.getOpenAIKey();
 						currentApiKey = oAIKey?.key; // Track the current API key
 						if (!oAIKey?.key) {
 							throw new Error("OpenAI API key is undefined");
@@ -826,9 +916,16 @@ class ChatGPT {
 				usage(usageData);
 				if (this.onUsage) this.onUsage(usageData);
 		
+				// Update API key statistics
 				oAIKey.tokens += usageData.total_tokens;
 				oAIKey.balance = (oAIKey.tokens / 1000) * this.options.price;
 				oAIKey.queries++;
+				
+				// Save updated API key data
+				if (this.db.isRedis()) {
+					await this.db.setApiKeyAsync(oAIKey);
+				}
+				// For JSON storage, the object is already updated by reference
 		
 				conversation.messages.push({
 					id: randomUUID(),
@@ -837,6 +934,12 @@ class ChatGPT {
 					date: Date.now(),
 					usage: usageDataResponse
 				});
+
+				// Save updated conversation
+				if (this.db.isRedis()) {
+					await this.db.setConversationAsync(conversation);
+				}
+				// For JSON storage, the object is already updated by reference
 
 				return responseStr || "No response content received from API";
 			} catch (error: any) {
@@ -940,12 +1043,14 @@ class ChatGPT {
 		return executeWithRetry();
 	}
 
-	public resetConversation(conversationId: string) {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async resetConversation(conversationId: string): Promise<Conversation | null> {
+		let conversation = await this.getConversationById(conversationId);
 		if (conversation) {
-			this.archiveOldestMessage(conversation, '', true);
+			await this.archiveOldestMessage(conversation, '', true);
 			conversation.messages = [];
 			conversation.lastActive = Date.now();
+			// Save the updated conversation
+			await this.saveConversation(conversation);
 		}
 	
 		return conversation;

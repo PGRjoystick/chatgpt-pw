@@ -1,3 +1,5 @@
+import { RedisDbContextOptions } from "../classes/redis-dbcontext.js";
+
 interface ChatGPTOptions {
 	model?: string;
 	temperature?: number;
@@ -15,7 +17,10 @@ interface ChatGPTOptions {
 	alt_api_key?: string | string[];
 	base_instruction?: string;
 	xapi?: boolean;
-	debug: boolean;
+	debug?: boolean;
+	// Redis configuration
+	useRedis?: boolean;
+	redis?: RedisDbContextOptions;
 }
 
 export default ChatGPTOptions;
