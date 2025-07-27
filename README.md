@@ -100,3 +100,22 @@ let conversationId2 = "another conversation name";
 let response2 = await bot.ask("Hello?", conversationId2);
 console.log(response2);
 ```
+
+
+## 🛠️ Tools and Utilities
+
+This repository includes various tools and utilities in the `tools/` directory:
+
+### Migration Tools
+- **`simple-migrate.js`** - Simple migration script to transfer data from `db.json` to Redis
+- **`migrate-to-redis.js`** - Advanced migration script with command-line options
+
+### Debugging Tools  
+- **`redis-inspector.js`** - Tool to inspect and debug Redis database content
+- **`analyze-json.js`** - Analyzes the structure of your `db.json` file
+
+### Test Scripts
+- **`test-redis-fix.js`** - Test script to verify Redis conversation operations
+- **`test-blacklist.js`** - Test script for API key blacklisting functionality
+
+See [`tools/README.md`](tools/README.md) for detailed usage instructions.

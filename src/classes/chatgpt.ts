@@ -245,7 +245,7 @@ class ChatGPT {
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let firstMessage = this.formatMessageContent(conversation.messages[0].content);
 			let lastMessage = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].content);
-			let lastType = this.formatMessageContent(conversation.messages[conversation.messages.length - 1].type);
+			let lastType = conversation.messages[conversation.messages.length - 1].type; // Fix: removed formatMessageContent wrapper since type is already a number
 			
 			let isLastMessagevision = false;
 			let isLastMessageFile = false;
@@ -1215,8 +1215,8 @@ class ChatGPT {
 		return youtubePatterns.some(pattern => pattern.test(url));
 	}
 
-	public countChatsWithYouTubeFile(conversationId: string): number {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async countChatsWithYouTubeFile(conversationId: string): Promise<number> {
+		let conversation = await this.getConversationById(conversationId);
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 			let youtubeFileCount = 0;
 			for (let message of conversation.messages) {
@@ -1240,8 +1240,8 @@ class ChatGPT {
 	}
 
 	// Deletes the most recent message containing file content (file_url) with YouTube URL in the conversation
-	public deleteLastYouTubeFileMessage(conversationId: string) {
-		let conversation = this.db.conversations.Where((conversation) => conversation.id === conversationId).FirstOrDefault();
+	public async deleteLastYouTubeFileMessage(conversationId: string): Promise<Conversation | null> {
+		let conversation = await this.getConversationById(conversationId);
 		
 		if (conversation && conversation.messages && conversation.messages.length >= 1) {
 		  // Search from most recent message backward
@@ -1262,6 +1262,9 @@ class ChatGPT {
 				conversation.messages.splice(i, 1);
 				conversation.lastActive = Date.now();
 				console.log(`YouTube file message at index ${i} removed from conversation ${conversationId}`);
+				
+				// Save the updated conversation
+				await this.saveConversation(conversation);
 				return conversation;
 			  }
 			}

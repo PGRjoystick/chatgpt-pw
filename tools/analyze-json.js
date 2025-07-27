@@ -1,9 +1,24 @@
 import * as fs from 'fs';
+import * as path from 'path';
+
+// Helper function to find db.json file
+function findDbJsonPath() {
+  const possiblePaths = ['./db.json', '../db.json'];
+  for (const filePath of possiblePaths) {
+    if (fs.existsSync(filePath)) {
+      return filePath;
+    }
+  }
+  throw new Error('db.json file not found. Please ensure db.json exists in the current directory or parent directory.');
+}
 
 console.log('🔍 Analyzing db.json structure...\n');
 
 try {
-  const jsonData = JSON.parse(fs.readFileSync('./db.json', 'utf-8'));
+  const dbPath = findDbJsonPath();
+  console.log(`📁 Using database file: ${path.resolve(dbPath)}\n`);
+  
+  const jsonData = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
   
   console.log('📋 Top-level structure:');
   console.log(`   Keys in JSON: ${Object.keys(jsonData).join(', ')}`);

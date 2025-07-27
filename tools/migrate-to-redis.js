@@ -9,10 +9,21 @@ import { createClient } from 'redis';
 import * as fs from 'fs';
 import * as path from 'path';
 
+// Helper function to find db.json file
+function findDbJsonPath() {
+  const possiblePaths = ['./db.json', '../db.json'];
+  for (const filePath of possiblePaths) {
+    if (fs.existsSync(filePath)) {
+      return filePath;
+    }
+  }
+  return './db.json'; // fallback to current directory
+}
+
 // Configuration
 const DEFAULT_CONFIG = {
   // Source file
-  jsonFilePath: './db.json',
+  jsonFilePath: findDbJsonPath(),
   
   // Redis configuration
   redis: {
@@ -375,7 +386,7 @@ Options:
   --dry-run                 Run without writing to Redis (default: false)
   --verbose                 Verbose output (default: true)
   --quiet                   Minimal output
-  --json-file <path>        Path to db.json file (default: ./db.json)
+  --json-file <path>        Path to db.json file (default: ../db.json)
   --redis-host <host>       Redis host (default: localhost)
   --redis-port <port>       Redis port (default: 6379)
   --redis-password <pass>   Redis password

@@ -1,5 +1,17 @@
 import { createClient } from 'redis';
 import * as fs from 'fs';
+import * as path from 'path';
+
+// Helper function to find db.json file
+function findDbJsonPath() {
+  const possiblePaths = ['./db.json', '../db.json'];
+  for (const filePath of possiblePaths) {
+    if (fs.existsSync(filePath)) {
+      return filePath;
+    }
+  }
+  throw new Error('db.json file not found. Please ensure db.json exists in the current directory or parent directory.');
+}
 
 /**
  * Simple migration script for ChatGPT database
@@ -13,7 +25,7 @@ async function migrateToRedis() {
   // Configuration - Update these values for your setup
   const config = {
     // Path to your existing db.json file
-    jsonFile: './db.json',
+    jsonFile: findDbJsonPath(),
     
     // Redis connection settings
     redis: {
