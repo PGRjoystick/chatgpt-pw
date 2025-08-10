@@ -690,7 +690,7 @@ class ChatGPT {
 	}
 	
 	public async askStream(data: (arg0: string) => void, usage: (usage: Usage) => void, prompt: string, conversationId: string = "default", userName: string = "User", groupName?: string, groupDesc?: string, totalParticipants?: string, imageUrl?: string, loFi?: boolean, gptModel?: string, maxContextWindowInput?: number, reverse_url?: string, version?: number, personalityPrompt?: string, isAyana?: boolean, useAltApi?: boolean, providedAltApiKey?: string[], providedAltApiEndpoint?: string, xapi?: boolean, systemPromptUnsupported?: boolean, additionalParameters?: object, additionalHeaders?: object, imgUrlUnsupported?: boolean, fileUrl?: string, disposableKeys?: boolean) {
-		const MAX_RETRIES = 5;
+		const MAX_RETRIES = 10; // Maximum number of retries for API key selection
 		let retryCount = 0;
 		let apiKeyArray = providedAltApiKey || this.options.alt_api_key;
 		
